@@ -1,6 +1,6 @@
 import numpy as np
 
-def csi_calibration(phase):
+def csi_phase_calibration(phase):
     """CSI phase calibration based on:
     https://github.com/ermongroup/Wifi_Activity_Recognition/blob/master/datfile_convert_final/phase_calibration.m
     
@@ -29,6 +29,6 @@ def csi_calibration(phase):
     return calibrated_phase_final
 
 
-def calibrate_amplitude(amplitudes, rssi):  # Basic statistical normalization
+def Csi_amplitude_calibration(amplitudes, rssi):  # Basic statistical normalization
     amplitudes = np.array(amplitudes)
     return ((amplitudes - np.min(amplitudes)) / (np.max(amplitudes) - np.min(amplitudes))) * rssi
