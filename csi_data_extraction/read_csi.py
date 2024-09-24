@@ -1,7 +1,7 @@
 import io
 import struct
 from math import atan2
-
+import os
 BITS_PER_BYTE=8
 BITS_PER_SYMBOL=10
 bitmask=(1<<BITS_PER_SYMBOL)-1
@@ -117,3 +117,46 @@ def calc_phase_angle(iq, unwrap=0):
     if unwrap == 1:
         return atan2(imag, real)
     return atan2(imag, real)
+
+
+
+def read_log_file(filename, ignore_endian=0, endian="", check_tones=1):
+    f = open(filename, "rb")
+    f.seek(0, os.SEEK_END)
+    length = f.tell()  # File Length
+    print("file length is ", length)
+
+    f.seek(0, 0)  # Default Pos
+    if ignore_endian == 0:
+        if struct.unpack("B", f.read(1))[0] == 255:
+            print("Big-Endian Format")
+            endian = ">"
+        else:
+            print("Little-Endian Format")  # 1 Byte Endian Format
+            endian = "<"
+    ret = []
+    tones = -1
+    while (f.tell() < length):
+        try:
+            csi_inf = unpack_csi_struct(f, endianess=endian)
+            if (tones == -1 and check_tones == 1):
+                tones = csi_inf.num_tones
+            if (check_tones == 1 and csi_inf.num_tones != tones):
+                continue  # discarding packet with a different amount of tones
+            if (csi_inf.csi == 0):
+                print("Ignoring packet, no csi information found")
+                continue
+            ret.append(csi_inf)
+        except:
+            print("Corrupt Packet")
+            break
+    f.close()
+    return ret
+
+
+if __name__ == "__main__":
+    file = read_log_file("D:\Wifi_based_HAR\data\csi_a16_30.dat")
+    print("Done reading")
+
+    for struct in file:
+        print(struct.channel)
