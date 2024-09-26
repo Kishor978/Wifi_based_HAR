@@ -70,3 +70,60 @@ class UI(QtWidgets.QWidget):
     def process_events(self):
         self.app.processEvents()
         
+
+class UDPListener:
+    packet_counter=0
+    def __init__(self,save_data_path:str,sock:QtNetwork.QUdpSocket,
+                 form:UI,make_photo:bool=False):
+        self.save_data_path=save_data_path
+        os.makedirs(save_data_path,exist_ok=True)
+        self.make_photo=make_photo
+        self.sock=sock
+        self.form=form
+        self.cam=cv2.VideoCapture(0)if self.make_photo else None
+        sock.readyRead.connect(self.on_datagram_received)
+        
+    def on_datagram_received(self):
+        while self.sock.hasPendingDatagrams():
+            datagram,host,port=self.sock.readDatagram(self.sock.pendingDatagramSize())
+            f=io.BytesIO(datagram)
+            csi_inf=unpack_csi_struct(f)
+            # get csi from data packet, save and process for further visualization
+            if csi_inf.csi !=0:
+                raw_peak_amplitudes,raw_phases,carriers_indexes,antenna_pairs=self.get_csi_raw_data(cis_inf)
+                self.calc(raw_peak_amplitudes,raw_phases,carriers_indexes,antenna_pairs)
+                self.save_csi_to_file(raw_peak_amplitudes,raw_phases,carriers_indexes)
+                
+                if self.make_photo:
+                    self.make_photo_and_save()
+                self.form.update_plots()
+                self.packet_counter+=1
+                
+    def get_csi_raw_data(self,csi_inf):
+        print("Getting CSI from the raw data")
+        channel=csi_inf.channel
+        carrier_num=csi_inf.num_tones
+        carriers=[]
+        print("channel:",channel)
+        print("carriers_num:",carrier_num)
+        
+        num_of_antenna_pairs=csi_inf.nc*csi_inf.nr
+        antenna_pairs=[(tx_index,rx_index) for tx_index in range(csi_inf.nc) for rx_index in range(csi_inf.nr)]
+        raw_phases, raw_peak_amplitudes = [[] for _ in range(num_of_antenna_pairs)], \
+                                          [[] for _ in range(num_of_antenna_pairs)]
+        print("antenna_pairs: ", antenna_pairs)
+        for i in range(0, carriers_num):
+            for enum_index, (tr_i, rc_i) in enumerate(antenna_pairs):
+                # print("csi_len ", csi_inf.csi_len)
+                # print("csi_inf.csi[i]: ", csi_inf)
+                p = csi_inf.csi[i][tr_i][rc_i]
+                imag, real = p.imag, p.real
+
+                peak_amplitude = np.sqrt(np.power(real, 2) + np.power(imag, 2))  # calculate peak amplitude
+                phase_angle = calc_phase_angle(p)  # calculate phase angle
+
+                raw_peak_amplitudes[enum_index].append(peak_amplitude)
+                raw_phases[enum_index].append(phase_angle)
+            carriers.append(i)
+
+        return raw_peak_amplitudes, raw_phases, carriers, antenna_pairs
