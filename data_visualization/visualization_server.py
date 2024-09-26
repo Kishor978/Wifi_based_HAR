@@ -147,21 +147,61 @@ class UDPListener:
         self.form.antenna_pairs=antenna_pairs
         
 
-def make_photo_and_save(self):
-    ret, frame = self.cam.read()
-    
-    img_name="opencv_frame_{}.png".format(UDPListener.packet_counter)
-    path_to_image="{}/{}/{}".format(self.save_data_path,"images",img_name)
-    cv2.imwrite(path_to_image,frame)
-    print("{} written!".format(path_to_image))
-    
-def save_csi_to_file(self, raw_peak_amplitudes, raw_phases, carriers):
-        # print("Saving CSI data to .csv file...")
-        filename_csv = "data.csv"
-        path_to_csv_file = "{}/{}".format(self.save_data_path, filename_csv)
+    def make_photo_and_save(self):
+        ret, frame = self.cam.read()
+        
+        img_name="opencv_frame_{}.png".format(UDPListener.packet_counter)
+        path_to_image="{}/{}/{}".format(self.save_data_path,"images",img_name)
+        cv2.imwrite(path_to_image,frame)
+        print("{} written!".format(path_to_image))
+        
+    def save_csi_to_file(self, raw_peak_amplitudes, raw_phases, carriers):
+            # print("Saving CSI data to .csv file...")
+            filename_csv = "data.csv"
+            path_to_csv_file = "{}/{}".format(self.save_data_path, filename_csv)
 
-        with open(path_to_csv_file, 'a', newline='\n') as csvfile:
-            writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            writer.writerow([*carriers, *raw_peak_amplitudes[0], *raw_peak_amplitudes[1], *raw_peak_amplitudes[2],
-                             *raw_peak_amplitudes[3], *raw_phases[0], *raw_phases[1], *raw_phases[2], *raw_phases[3]])
-        print("Data saved to .csv file!")
+            with open(path_to_csv_file, 'a', newline='\n') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                writer.writerow([*carriers, *raw_peak_amplitudes[0], *raw_peak_amplitudes[1], *raw_peak_amplitudes[2],
+                                *raw_peak_amplitudes[3], *raw_phases[0], *raw_phases[1], *raw_phases[2], *raw_phases[3]])
+            print("Data saved to .csv file!")
+            
+    
+    
+def init_argparse()-> argparse.ArgumentParser:
+    parser=argparse.ArgumentParser(
+        description="Visualization server that listens to any incoming packets, plot them and store.\n"
+                "Only supports up to 4 antenna pairs at the moment.",
+    prog="python run_visualization_server.py"
+    )
+    parser.add_argument("-f", "--frequency", help="Frequency on which both routes are operating",
+                        choices=['2400MHZ', '5000MHZ'], default='5000MHZ')
+    parser.add_argument("-s", "--save_path", help="path to the folder where to save the incoming data",
+                        default="./tmp", type=str)
+    parser.add_argument("-p", "--port", help="port to listen to", default=1234, type=int)
+    parser.add_argument("--photo", help="make webcam photo for each data packet?", default=False, type=bool)
+
+    return parser
+
+def run_app():
+    parser=init_argparse()
+    args=parser.parse_args()
+    app=QtWidgets.QApplication([])
+    try:
+        udp_socket=QtNetwork.QUdpSocket()
+        udp_socket.bind(QtNetwork.QHostAddress.SpecialAddress.Any,args.port)
+        form=UI(app=app,is_5ghz=(args.frequency=='5000MHZ'))
+        form.show()
+        
+        listner=UDPListener(save_data_path=args.save_path,sock=udp_socket,
+                            form=form,make_photo=args.photo)
+        app.exec()
+    except KeyboardInterrupt as e:
+        try:
+            listner.cam.release()
+        except Exception as e_cam:
+            pass
+        print("Exiting the application...")
+
+if __name__=='__main__':
+    run_app()
