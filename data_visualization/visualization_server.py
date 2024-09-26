@@ -17,7 +17,7 @@ class UI(QtWidgets.QWidget):
         self.app=app
         self.is_5ghz=is_5ghz
         # load ui
-        uic.load_ui('window.ui',self)
+        uic.loadUi('D:\Wifi_based_HAR\data_visualization\window.ui',self)
         self.setWindowTitle(f"{'5GHz' if is_5ghz else '2.4GHz'} CSI Data Visualization.")
         self.antenna_pairs,self.carrier,self.amplitude,self.phase=[],[],[],[]
         amp=self.box_amp
@@ -90,7 +90,7 @@ class UDPListener:
             csi_inf=unpack_csi_struct(f)
             # get csi from data packet, save and process for further visualization
             if csi_inf.csi !=0:
-                raw_peak_amplitudes,raw_phases,carriers_indexes,antenna_pairs=self.get_csi_raw_data(cis_inf)
+                raw_peak_amplitudes,raw_phases,carriers_indexes,antenna_pairs=self.get_csi_raw_data(csi_inf)
                 self.calc(raw_peak_amplitudes,raw_phases,carriers_indexes,antenna_pairs)
                 self.save_csi_to_file(raw_peak_amplitudes,raw_phases,carriers_indexes)
                 
@@ -112,7 +112,7 @@ class UDPListener:
         raw_phases, raw_peak_amplitudes = [[] for _ in range(num_of_antenna_pairs)], \
                                           [[] for _ in range(num_of_antenna_pairs)]
         print("antenna_pairs: ", antenna_pairs)
-        for i in range(0, carriers_num):
+        for i in range(0, carrier_num):
             for enum_index, (tr_i, rc_i) in enumerate(antenna_pairs):
                 # print("csi_len ", csi_inf.csi_len)
                 # print("csi_inf.csi[i]: ", csi_inf)
@@ -137,12 +137,12 @@ class UDPListener:
         
         # calidrate amplitude and update form amplitude values
         for i in range(len(amplitude)):
-            amplitude[i]=Csi_amplitude_calibration(amplitude[i])
+            amplitude[i]=Csi_amplitude_calibration(amplitude[i],1).tolist()
         self.form.amplitude=amplitude
         
         # calibrate phase and update form phase values
         for i in range(len(phase)):
-            phase[i]=csi_phase_calibration(phase[i])
+            phase[i]=csi_phase_calibration(phase[i]).tolist()
         self.form.phase=phase
         self.form.antenna_pairs=antenna_pairs
         
@@ -162,6 +162,7 @@ class UDPListener:
 
             with open(path_to_csv_file, 'a', newline='\n') as csvfile:
                 writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                print(len(raw_peak_amplitudes))
                 writer.writerow([*carriers, *raw_peak_amplitudes[0], *raw_peak_amplitudes[1], *raw_peak_amplitudes[2],
                                 *raw_peak_amplitudes[3], *raw_phases[0], *raw_phases[1], *raw_phases[2], *raw_phases[3]])
             print("Data saved to .csv file!")
@@ -190,7 +191,7 @@ def run_app():
     try:
         udp_socket=QtNetwork.QUdpSocket()
         udp_socket.bind(QtNetwork.QHostAddress.SpecialAddress.Any,args.port)
-        form=UI(app=app,is_5ghz=(args.frequency=='5000MHZ'))
+        form=UI(app=app,is_5ghz=(args.frequency=='2400MHZ'))
         form.show()
         
         listner=UDPListener(save_data_path=args.save_path,sock=udp_socket,

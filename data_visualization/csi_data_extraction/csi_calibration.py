@@ -5,7 +5,7 @@ def csi_phase_calibration(phase):
     https://github.com/ermongroup/Wifi_Activity_Recognition/blob/master/datfile_convert_final/phase_calibration.m
     
     """
-    phases=np.array(phases)
+    phases=np.array(phase)
     difference=0
     calibrated_phase,calibrated_phase_final=np.zeros_like(phase),np.zeros_like(phases)
     calibrated_phase[0] = phases[0]
