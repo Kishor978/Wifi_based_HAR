@@ -127,3 +127,41 @@ class UDPListener:
             carriers.append(i)
 
         return raw_peak_amplitudes, raw_phases, carriers, antenna_pairs
+
+    def calc(self,raw_peak_amplitudes,raw_phases,carriers_indexes,antenna_pairs):
+        # used for visualization only
+        amplitude,phase=deepcopy(raw_peak_amplitudes),deepcopy(raw_phases)
+        
+        # update from carrier indexes
+        self.form.carrier=carriers_indexes
+        
+        # calidrate amplitude and update form amplitude values
+        for i in range(len(amplitude)):
+            amplitude[i]=Csi_amplitude_calibration(amplitude[i])
+        self.form.amplitude=amplitude
+        
+        # calibrate phase and update form phase values
+        for i in range(len(phase)):
+            phase[i]=csi_phase_calibration(phase[i])
+        self.form.phase=phase
+        self.form.antenna_pairs=antenna_pairs
+        
+
+def make_photo_and_save(self):
+    ret, frame = self.cam.read()
+    
+    img_name="opencv_frame_{}.png".format(UDPListener.packet_counter)
+    path_to_image="{}/{}/{}".format(self.save_data_path,"images",img_name)
+    cv2.imwrite(path_to_image,frame)
+    print("{} written!".format(path_to_image))
+    
+def save_csi_to_file(self, raw_peak_amplitudes, raw_phases, carriers):
+        # print("Saving CSI data to .csv file...")
+        filename_csv = "data.csv"
+        path_to_csv_file = "{}/{}".format(self.save_data_path, filename_csv)
+
+        with open(path_to_csv_file, 'a', newline='\n') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            writer.writerow([*carriers, *raw_peak_amplitudes[0], *raw_peak_amplitudes[1], *raw_peak_amplitudes[2],
+                             *raw_peak_amplitudes[3], *raw_phases[0], *raw_phases[1], *raw_phases[2], *raw_phases[3]])
+        print("Data saved to .csv file!")
