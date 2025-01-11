@@ -24,3 +24,7 @@ sympy==1.12
 # torchvision==0.15.2+cpu
 typing_extensions==4.9.0
 urllib3==1.26.13
+tqdm
+scikit-learn
+pandas
+PyWavelets
