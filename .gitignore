@@ -163,6 +163,5 @@ cython_debug/
 
 dataset/
 Images/
-BiLSTM_Attention.py
-train.py
+
 saved_models/
