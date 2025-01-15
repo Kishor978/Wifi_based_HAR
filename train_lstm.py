@@ -10,6 +10,16 @@ from metrics import get_train_metric
 from models import LSTMClassifier
 from tqdm import tqdm
 
+# Configure logging
+log_filename = 'training.log'
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename),  # Log to a file
+        logging.StreamHandler()             # Log to the console
+    ]
+)
 logging.basicConfig(level=logging.INFO)
 
 # Cuda support
@@ -29,13 +39,25 @@ SEQ_DIM = 1024
 DATA_STEP = 8
 
 BATCH_SIZE = 4
-EPOCHS_NUM = 1
+EPOCHS_NUM = 5
 LEARNING_RATE = 0.00146
 
 class_weights = torch.Tensor([0.113, 0.439, 0.0379, 0.1515, 0.0379, 0.1212, 0.1363]).double().to(device)
 class_weights_inv = 1 / class_weights
 logging.info("class_weights_inv: {}".format(class_weights_inv))
 
+def save_checkpoint(state, filename='checkpoint.pth'):
+    torch.save(state, filename)
+    logging.info(f'Checkpoint saved: {filename}')
+    
+def load_checkpoint(filename='checkpoint.pth'):
+    if torch.cuda.is_available():
+        checkpoint = torch.load(filename)
+    else:
+        checkpoint = torch.load(filename, map_location=torch.device('cpu'))
+
+    logging.info(f'Checkpoint loaded: {filename}')
+    return checkpoint
 
 def load_data():
     logging.info("Loading data...")
@@ -60,44 +82,63 @@ def load_data():
 
 def train():
     patience, trials, best_acc = 100, 0, 0
-    trn_dl, val_dl = load_data()
-
+    
+    start_epoch = 1
     model = LSTMClassifier(input_dim, hidden_dim, layer_dim, dropout_rate, bidirectional, output_dim, BATCH_SIZE)
     model = model.double().to(device)
-
     criterion = nn.CrossEntropyLoss(weight=class_weights_inv)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5)
 
+
+    # Load checkpoint if available
+    checkpoint_filename = 'checkpoint.pth'
+    try:
+        checkpoint = load_checkpoint(checkpoint_filename)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_acc = checkpoint['best_acc']
+    except FileNotFoundError:
+        logging.info("No checkpoint found, starting training from scratch.")
+    
+    trn_dl, val_dl = load_data()
+
+
+    
     # training loop
     logging.info("Start model training")
     for epoch in range(1, EPOCHS_NUM + 1):
         model.train(mode=True)
-
+        correct_predictions = 0
+        total_predictions = 0
+        epoch_loss = 0
         # model.hidden = model.init_hidden(BATCH_SIZE)
         for i, (x_batch, y_batch) in tqdm(enumerate(trn_dl), total=len(trn_dl), desc="Training epoch: "):
             if x_batch.size(0) != BATCH_SIZE:
                 continue
-
+            print("Training epoch: ", epoch)
             # model.init_hidden(x_batch.size(0))
             x_batch, y_batch = x_batch.double().to(device), y_batch.double().to(device)
 
-            print("x_batch: ", x_batch.shape)
-            print("y_batch: ", y_batch.shape)
+            print("\nx_batch: ", x_batch.shape)
+            print("\ny_batch: ", y_batch.shape)
 
             # Forward pass
             out = model(x_batch)
 
-            print("out: ", out)
+            print("\nout: ", out)
             print("y_batch: ", y_batch)
 
-            print("out: ", out.shape)
+            print("\nout: ", out.shape)
             # out = out.view(out.size(0) * out.size(1), out.size(2))
             # y_batch = y_batch.view(y_batch.size(0) * y_batch.size(1))
 
             # print("out: ", out.shape)
 
             loss = criterion(out, y_batch.long())
+            epoch_loss += loss.item()
             # loss = criterion(out.view(out.size(0) * out.size(1), out.size(2)), y_batch.view(y_batch.size(0) * y_batch.size(1)).long())
 
             # zero the parameter gradients
@@ -106,14 +147,22 @@ def train():
             # Backward and optimize
             loss.backward()
             optimizer.step()
+            # Metrics
+            _, predicted = torch.max(out, 1)
+            correct_predictions += (predicted == y_batch).sum().item()
+            total_predictions += y_batch.size(0)
+
+        train_accuracy = correct_predictions / total_predictions
+
+
 
         val_loss, val_correct, val_total, val_acc = get_train_metric(model, val_dl, criterion, BATCH_SIZE)
-        train_loss, train_correct, train_total, train_acc = get_train_metric(model, trn_dl, criterion, BATCH_SIZE)
+        # train_loss, train_correct, train_total, train_acc = get_train_metric(model, trn_dl, criterion, BATCH_SIZE)
 
         logging.info(f'Epoch: {epoch:3d} |'
                      f' Validation Loss: {val_loss:.2f}, Validation Acc.: {val_acc:2.2%}, '
-                     f'Train Loss: {train_loss:.2f}, Train Acc.: {train_acc:2.2%}'
-                     )
+                     f'Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}')
+                     
 
         if val_acc > best_acc:
             trials = 0
@@ -125,6 +174,15 @@ def train():
             if trials >= patience:
                 logging.info(f'Early stopping on epoch {epoch}')
                 break
+            
+        # Save checkpoint after each epoch
+        save_checkpoint({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'best_acc': best_acc
+        }, checkpoint_filename)
 
         scheduler.step(val_loss)
 
