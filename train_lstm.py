@@ -39,7 +39,7 @@ SEQ_DIM = 1024
 DATA_STEP = 8
 
 BATCH_SIZE = 4
-EPOCHS_NUM = 5
+EPOCHS_NUM = 1
 LEARNING_RATE = 0.00146
 
 class_weights = torch.Tensor([0.113, 0.439, 0.0379, 0.1515, 0.0379, 0.1212, 0.1363]).double().to(device)

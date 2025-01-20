@@ -165,3 +165,4 @@ dataset/
 Images/
 
 saved_models/
+*.pth
