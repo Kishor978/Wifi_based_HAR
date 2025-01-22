@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from dataset_loader import CSIDataset
 from models import CNN_BiLSTM_Attention
-from metrics import get_train_metric
+from metrics import get_train_metric_BiLSTM
 
 logging.basicConfig(level=logging.INFO)
 
@@ -82,6 +82,7 @@ def train():
 
             # Reshape x_batch to match CNN input (batch_size, channels, height, width)
             x_batch = x_batch.unsqueeze(1)  # Adding a channel dimension (batch_size, 1, height, width)
+            
             x_batch, y_batch = x_batch.double().to(device), y_batch.long().to(device)
 
             optimizer.zero_grad()
@@ -102,7 +103,8 @@ def train():
             total_predictions += y_batch.size(0)
 
         train_accuracy = correct_predictions / total_predictions
-        val_loss, val_correct, val_total, val_acc = get_train_metric(model, val_dl, criterion, BATCH_SIZE)
+        
+        val_loss, val_correct, val_total, val_acc = get_train_metric_BiLSTM(model, val_dl, criterion, BATCH_SIZE)
 
         logging.info(f'Epoch: {epoch:3d} | '
                      f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2%}, '
