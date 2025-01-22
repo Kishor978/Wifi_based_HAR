@@ -9,7 +9,13 @@ from dataset_loader import CSIDataset
 from models import CNN_BiLSTM_Attention
 from metrics import get_train_metric_BiLSTM
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[
+                        logging.FileHandler("training.log"),
+                        logging.StreamHandler()
+                    ])
 
 # Cuda support
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -32,10 +38,8 @@ class_weights = torch.Tensor([0.113, 0.439, 0.0379, 0.1515, 0.0379, 0.1212, 0.13
 class_weights_inv = 1 / class_weights
 logging.info("class_weights_inv: {}".format(class_weights_inv))
 
-
 def load_data():
     logging.info("Loading data...")
-
     train_dataset = CSIDataset([
         ".\\dataset\\bedroom_lviv\\1",
         ".\\dataset\\bedroom_lviv\\2",
@@ -48,7 +52,6 @@ def load_data():
     ], SEQ_DIM, DATA_STEP)
 
     val_dataset = train_dataset
-
     logging.info("Data is loaded...")
 
     trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
@@ -56,21 +59,44 @@ def load_data():
 
     return trn_dl, val_dl
 
+def save_checkpoint(state, filename='checkpoint.pth'):
+    torch.save(state, filename)
+
+def load_checkpoint(filename):
+    if torch.cuda.is_available():
+        checkpoint = torch.load(filename)
+    else:
+        checkpoint = torch.load(filename, map_location=torch.device('cpu'))
+    return checkpoint
 
 def train():
     patience, trials, best_acc = 100, 0, 0
     trn_dl, val_dl = load_data()
 
     # Initialize the CNN-BiLSTM-Attention model
-    model = CNN_BiLSTM_Attention(input_dim, hidden_dim, layer_dim, dropout_rate, bidirectional, output_dim,seq_dim=SEQ_DIM)
+    model = CNN_BiLSTM_Attention(input_dim, hidden_dim, layer_dim, dropout_rate, bidirectional, output_dim, seq_dim=SEQ_DIM)
     model = model.double().to(device)
 
     criterion = nn.CrossEntropyLoss(weight=class_weights_inv)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5)
 
+    # Load checkpoint if available
+    checkpoint_path = 'checkpoint.pth'
+    try:
+        checkpoint = load_checkpoint(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_acc = checkpoint['best_acc']
+        logging.info(f"Resuming from epoch {start_epoch}")
+    except FileNotFoundError:
+        start_epoch = 1
+        logging.info("No checkpoint found, starting training from scratch.")
+
     logging.info("Start model training")
-    for epoch in range(1, EPOCHS_NUM + 1):
+    for epoch in range(start_epoch, EPOCHS_NUM + 1):
         model.train()
         epoch_loss = 0
         correct_predictions = 0
@@ -80,37 +106,28 @@ def train():
             if x_batch.size(0) != BATCH_SIZE:
                 continue
 
-            # Reshape x_batch to match CNN input (batch_size, channels, height, width)
-            x_batch = x_batch.unsqueeze(1)  # Adding a channel dimension (batch_size, 1, height, width)
-            
-            x_batch, y_batch = x_batch.double().to(device), y_batch.long().to(device)
+            x_batch = x_batch.unsqueeze(1).double().to(device)
+            y_batch = y_batch.long().to(device)
 
             optimizer.zero_grad()
-
-            # Forward pass
             out = model(x_batch)
-
             loss = criterion(out, y_batch)
             epoch_loss += loss.item()
 
-            # Backward pass and optimization
             loss.backward()
             optimizer.step()
 
-            # Metrics
             _, predicted = torch.max(out, 1)
             correct_predictions += (predicted == y_batch).sum().item()
             total_predictions += y_batch.size(0)
 
         train_accuracy = correct_predictions / total_predictions
-        
         val_loss, val_correct, val_total, val_acc = get_train_metric_BiLSTM(model, val_dl, criterion, BATCH_SIZE)
 
         logging.info(f'Epoch: {epoch:3d} | '
                      f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2%}, '
                      f'Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}')
 
-        # Check for model improvement
         if val_acc > best_acc:
             trials = 0
             best_acc = val_acc
@@ -122,8 +139,16 @@ def train():
                 logging.info(f'Early stopping on epoch {epoch}')
                 break
 
-        scheduler.step(val_loss)
+        # Save checkpoint after each epoch
+        save_checkpoint({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'best_acc': best_acc
+        }, checkpoint_path)
 
+        scheduler.step(val_loss)
 
 if __name__ == '__main__':
     train()
