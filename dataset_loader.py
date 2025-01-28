@@ -14,11 +14,11 @@ SUBCARRIES_NUM_FIVE_HHZ = 114
 PHASE_MIN, PHASE_MAX = 3.1389, 3.1415
 AMP_MIN, AMP_MAX = 0.0, 577.6582
 
+
 class CSIDataset(Dataset):
     """CSI Dataset."""
 
     def __init__(self, csv_files, window_size=32, step=1):
-        
 
         self.amplitudes, self.phases, self.labels = read_all_data_from_files(csv_files)
 
@@ -39,14 +39,26 @@ class CSIDataset(Dataset):
 
         data_len = self.phases.shape[0]
         for i in range(self.phases.shape[1]):
-            # self.phases[:data_len, i] = dwn_noise(hampel(self.phases[:, i]))[:data_len]
-            self.amplitudes[:data_len, i] = dwn_noise(hampel(self.amplitudes[:, i]))[:data_len]
+            self.amplitudes[:data_len, i] = dwn_noise(hampel(self.amplitudes[:, i]))[
+                :data_len
+            ]
 
         for i in range(4):
             self.amplitudes_pca.append(
-                pca.fit_transform(self.amplitudes[:, i * SUBCARRIES_NUM_FIVE_HHZ:(i + 1) * SUBCARRIES_NUM_FIVE_HHZ]))
+                pca.fit_transform(
+                    self.amplitudes[
+                        :,
+                        i * SUBCARRIES_NUM_FIVE_HHZ : (i + 1) * SUBCARRIES_NUM_FIVE_HHZ,
+                    ]
+                )
+            )
         self.amplitudes_pca = np.array(self.amplitudes_pca)
-        self.amplitudes_pca = self.amplitudes_pca.reshape((self.amplitudes_pca.shape[1], self.amplitudes_pca.shape[0] * self.amplitudes_pca.shape[2]))
+        self.amplitudes_pca = self.amplitudes_pca.reshape(
+            (
+                self.amplitudes_pca.shape[1],
+                self.amplitudes_pca.shape[0] * self.amplitudes_pca.shape[2],
+            )
+        )
 
         self.label_keys = list(set(self.labels))
         self.class_to_idx = {
@@ -56,7 +68,7 @@ class CSIDataset(Dataset):
             "sitting": 3,
             "get_up": 4,
             "lying": 5,
-            "no_person": 6
+            "no_person": 6,
         }
         self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
 
@@ -68,30 +80,29 @@ class CSIDataset(Dataset):
 
     def __getitem__(self, idx):
         if self.window == 0:
-            return np.append(self.amplitudes[idx], self.phases[idx]), self.class_to_idx[
-                self.labels[idx + self.window - 1]]
+            return (
+                np.append(self.amplitudes[idx], self.phases[idx]),
+                self.class_to_idx[self.labels[idx + self.window - 1]],
+            )
 
         idx = idx * self.step
         all_xs, all_ys = [], []
-        # idx = idx * self.window
 
         for index in range(idx, idx + self.window):
             all_xs.append(np.append(self.amplitudes[index], self.amplitudes_pca[index]))
-            # all_ys.append(self.class_to_idx[self.labels[index]])
 
         return np.array(all_xs), self.class_to_idx[self.labels[idx + self.window - 1]]
-        # return np.array(all_xs), np.array(all_ys)
 
     def __len__(self):
-        # return self.labels.shape[0] // self.window
-        # return (self.labels.shape[0] - self.window
         return int((self.labels.shape[0] - self.window) // self.step) + 1
 
 
-if __name__ == '__main__':
-    val_dataset = CSIDataset([
-        "./dataset/bedroom_lviv/4",
-    ])
+if __name__ == "__main__":
+    val_dataset = CSIDataset(
+        [
+            "./dataset/bedroom_lviv/4",
+        ]
+    )
 
     dl = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=1)
 

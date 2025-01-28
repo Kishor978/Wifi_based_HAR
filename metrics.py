@@ -35,6 +35,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 #     acc = correct / total
 
+
 #     return total_loss, correct, total, acc
 def get_train_metric(model, dl, criterion, BATCH_SIZE):
     model.eval()  # Set model to evaluation mode
@@ -62,6 +63,7 @@ def get_train_metric(model, dl, criterion, BATCH_SIZE):
     acc = correct / total
 
     return total_loss, correct, total, acc
+
 
 def get_train_metric_BiLSTM(model, val_dl, criterion, batch_size):
     model.eval()  # Set the model to evaluation mode
@@ -93,4 +95,3 @@ def get_train_metric_BiLSTM(model, val_dl, criterion, batch_size):
     avg_val_loss = val_loss / len(val_dl)
 
     return avg_val_loss, correct_predictions, total_predictions, val_accuracy
-

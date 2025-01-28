@@ -67,6 +67,7 @@ from models import LSTMClassifier
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 
+
 def main():
     # Model parameters
     input_dim = 468
@@ -86,24 +87,34 @@ def main():
 
     logging.basicConfig(level=logging.INFO)
 
-    model = LSTMClassifier(input_dim, hidden_dim, layer_dim, dropout_rate, bidirectional, output_dim, BATCH_SIZE)
+    model = LSTMClassifier(
+        input_dim,
+        hidden_dim,
+        layer_dim,
+        dropout_rate,
+        bidirectional,
+        output_dim,
+        BATCH_SIZE,
+    )
     model.load_state_dict(torch.load(".\\saved_models\\simple_lstm_best.pth"))
     model = model.to(device).double()
 
     model.eval()
 
-    val_dataset = CSIDataset([
-        ".\\dataset\\vitalnia_lviv\\5"
-    ], 1024)
+    val_dataset = CSIDataset([".\\dataset\\vitalnia_lviv\\5"], 1024)
 
-    val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)  # Set num_workers to 0
+    val_dl = DataLoader(
+        val_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0
+    )  # Set num_workers to 0
 
     correct_predictions = 0
     total_samples = 0
     all_preds = []
     all_labels = []
 
-    for i, (x_batch, y_batch) in tqdm(enumerate(val_dl), total=len(val_dl), desc="Testing epoch: "):
+    for i, (x_batch, y_batch) in tqdm(
+        enumerate(val_dl), total=len(val_dl), desc="Testing epoch: "
+    ):
         if x_batch.size(0) != BATCH_SIZE:
             continue
 
@@ -124,8 +135,9 @@ def main():
     cm = confusion_matrix(all_labels, all_preds)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(output_dim))
     disp.plot(cmap=plt.cm.Blues)
-    plt.title('Confusion Matrix')
+    plt.title("Confusion Matrix")
     plt.show()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
