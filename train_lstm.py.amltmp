@@ -1,5 +1,5 @@
 import logging
-
+import os
 import torch
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -26,6 +26,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 
 logging.info("Device: {}".format(device))
+
+# Define dataset structure (match your dataset_loader.py)
+DATASET_FOLDER = "../dataset"
+DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
+DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
 
 # LSTM Model parameters
 input_dim = 468  # 114 subcarriers * 4 antenna_pairs * 2 (amplitude + phase)
@@ -64,30 +69,22 @@ def load_checkpoint(filename="checkpoint.pth"):
     logging.info(f"Checkpoint loaded: {filename}")
     return checkpoint
 
-
 def load_data():
-    logging.info("Loading data...")
+    # List all sessions across rooms
+    all_sessions = []
+    for room_idx, room in enumerate(DATA_ROOMS):
+        for subroom in DATA_SUBROOMS[room_idx]:
+            session_path = os.path.join(DATASET_FOLDER, room, subroom)
+            all_sessions.append(session_path)
 
-    train_dataset = CSIDataset(
-        [
-            ".//dataset//bedroom_lviv//1",
-            ".//dataset//bedroom_lviv//2",
-            ".//dataset//bedroom_lviv//3",
-            ".//dataset//parents_home//1",
-            ".//dataset//vitalnia_lviv//1",
-            ".//dataset//vitalnia_lviv//2",
-            ".//dataset//vitalnia_lviv//3",
-            ".//dataset//vitalnia_lviv//4",        
-        ],
-        SEQ_DIM,
-        DATA_STEP,
+    # Split sessions into train/val (80/20)
+    train_sessions, val_sessions = train_test_split(
+        all_sessions, test_size=0.2, random_state=42, shuffle=True
     )
 
-    val_dataset = CSIDataset([
-        ".//dataset//bedroom_lviv//4",
-        ".//dataset//vitalnia_lviv//5"
-    ], SEQ_DIM)
-
+    # Initialize datasets with the same parameters
+    train_dataset = CSIDataset(train_sessions, window_size=SEQ_DIM, step=DATA_STEP)
+    val_dataset = CSIDataset(val_sessions, window_size=SEQ_DIM, step=DATA_STEP )
     logging.info("Data is loaded...")
 
     trn_dl = DataLoader(
@@ -98,6 +95,41 @@ def load_data():
     )
 
     return trn_dl, val_dl
+
+
+# def load_data():
+#     logging.info("Loading data...")
+
+#     train_dataset = CSIDataset(
+#         [
+#             ".//dataset//bedroom_lviv//1",
+#             ".//dataset//bedroom_lviv//2",
+#             ".//dataset//bedroom_lviv//3",
+#             ".//dataset//parents_home//1",
+#             ".//dataset//vitalnia_lviv//1",
+#             ".//dataset//vitalnia_lviv//2",
+#             ".//dataset//vitalnia_lviv//3",
+#             ".//dataset//vitalnia_lviv//4",        
+#         ],
+#         SEQ_DIM,
+#         DATA_STEP,
+#     )
+
+#     val_dataset = CSIDataset([
+#         ".//dataset//bedroom_lviv//4",
+#         ".//dataset//vitalnia_lviv//5"
+#     ], SEQ_DIM)
+
+#     logging.info("Data is loaded...")
+
+#     trn_dl = DataLoader(
+#         train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0
+#     )
+#     val_dl = DataLoader(
+#         val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0
+#     )
+
+#     return trn_dl, val_dl
 
 
 def train():
