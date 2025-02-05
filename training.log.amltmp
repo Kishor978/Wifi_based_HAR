@@ -1,0 +1,38 @@
+2025-01-28 10:04:29,573 - INFO - Device: cpu
+2025-01-28 10:04:29,593 - INFO - class_weights_inv: tensor([ 8.8496,  2.2779, 26.3852,  6.6007, 26.3852,  8.2508,  7.3368],
+       dtype=torch.float64)
+2025-01-28 10:04:29,593 - INFO - Loading data...
+2025-01-28 10:04:55,510 - INFO - Data is loaded...
+2025-01-28 10:04:56,188 - INFO - No checkpoint found, starting training from scratch.
+2025-01-28 10:04:56,188 - INFO - Start model training
+2025-01-28 10:30:33,216 - INFO - Epoch:   1 | Validation Loss: 1.79, Validation Acc.: 44.59%, Train Loss: 1.9179, Train Acc: 42.66%
+2025-01-28 10:30:33,390 - INFO - Epoch 1 best model saved with accuracy: 44.59%
+2025-01-28 10:30:33,705 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 10:59:45,451 - INFO - Epoch:   2 | Validation Loss: 1.81, Validation Acc.: 42.65%, Train Loss: 1.9197, Train Acc: 43.28%
+2025-01-28 10:59:45,718 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 11:25:03,866 - INFO - Epoch:   3 | Validation Loss: 1.76, Validation Acc.: 40.17%, Train Loss: 1.8972, Train Acc: 41.94%
+2025-01-28 11:25:04,128 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 11:49:55,897 - INFO - Epoch:   4 | Validation Loss: 1.63, Validation Acc.: 42.08%, Train Loss: 1.8448, Train Acc: 39.37%
+2025-01-28 11:49:56,205 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 12:14:45,174 - INFO - Epoch:   5 | Validation Loss: 1.54, Validation Acc.: 48.22%, Train Loss: 1.7385, Train Acc: 43.97%
+2025-01-28 12:14:45,304 - INFO - Epoch 5 best model saved with accuracy: 48.22%
+2025-01-28 12:14:45,603 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 12:38:20,327 - INFO - Epoch:   6 | Validation Loss: 1.56, Validation Acc.: 51.51%, Train Loss: 1.6484, Train Acc: 49.97%
+2025-01-28 12:38:20,500 - INFO - Epoch 6 best model saved with accuracy: 51.51%
+2025-01-28 12:38:20,789 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 13:01:59,121 - INFO - Epoch:   7 | Validation Loss: 1.37, Validation Acc.: 59.07%, Train Loss: 1.4904, Train Acc: 54.92%
+2025-01-28 13:01:59,291 - INFO - Epoch 7 best model saved with accuracy: 59.07%
+2025-01-28 13:01:59,542 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 13:25:34,598 - INFO - Epoch:   8 | Validation Loss: 1.15, Validation Acc.: 62.10%, Train Loss: 1.3076, Train Acc: 60.12%
+2025-01-28 13:25:34,738 - INFO - Epoch 8 best model saved with accuracy: 62.10%
+2025-01-28 13:25:34,995 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 13:49:08,120 - INFO - Epoch:   9 | Validation Loss: 1.21, Validation Acc.: 53.58%, Train Loss: 1.2195, Train Acc: 62.52%
+2025-01-28 13:49:08,427 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 14:13:34,315 - INFO - Epoch:  10 | Validation Loss: 0.93, Validation Acc.: 69.98%, Train Loss: 1.0752, Train Acc: 66.62%
+2025-01-28 14:13:34,476 - INFO - Epoch 10 best model saved with accuracy: 69.98%
+2025-01-28 14:13:34,746 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 14:38:29,753 - INFO - Epoch:  11 | Validation Loss: 0.82, Validation Acc.: 70.49%, Train Loss: 0.9488, Train Acc: 69.93%
+2025-01-28 14:38:29,890 - INFO - Epoch 11 best model saved with accuracy: 70.49%
+2025-01-28 14:38:30,249 - INFO - Checkpoint saved: checkpoint.pth
+2025-01-28 15:02:07,711 - INFO - Epoch:  12 | Validation Loss: 0.86, Validation Acc.: 68.97%, Train Loss: 0.8695, Train Acc: 70.55%
+2025-01-28 15:02:07,991 - INFO - Checkpoint saved: checkpoint.pth
