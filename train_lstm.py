@@ -9,7 +9,7 @@ from dataset_loader import CSIDataset
 from metrics import get_train_metric
 from models import LSTMClassifier
 from tqdm import tqdm
-
+from sklearn.model_selection import train_test_split    
 # Configure logging
 log_filename = "training.log"
 logging.basicConfig(
