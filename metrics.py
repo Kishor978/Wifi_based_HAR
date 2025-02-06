@@ -43,26 +43,27 @@ def get_train_metric(model, dl, criterion, BATCH_SIZE):
     correct, total, total_loss = 0, 0, 0
 
     # Remove init_hidden as this may not be relevant
-    for x_val, y_val in tqdm(dl, total=len(dl), desc="Validation epoch: "):
-        if x_val.size(0) != BATCH_SIZE:
-            continue
+    with torch.no_grad():  # Disable gradient computation
+        for x_val, y_val in tqdm(dl, total=len(dl), desc="Validation epoch: "):
+            if x_val.size(0) != BATCH_SIZE:
+                continue
 
-        # Remove init_hidden here as well
-        x_val, y_val = x_val.double().to(device), y_val.double().to(device)
+            # Remove init_hidden here as well
+            x_val, y_val = x_val.double().to(device), y_val.double().to(device)
 
-        out = model(x_val)
+            out = model(x_val)
 
-        loss = criterion(out, y_val.long())
+            loss = criterion(out, y_val.long())
 
-        total_loss += loss.item()
+            total_loss += loss.item()
 
-        preds = F.log_softmax(out, dim=1).argmax(dim=1)
-        total += y_val.size(0)
-        correct += (preds == y_val).sum().item()
+            preds = F.log_softmax(out, dim=1).argmax(dim=1)
+            total += y_val.size(0)
+            correct += (preds == y_val).sum().item()
 
-    acc = correct / total
+        acc = correct / total
 
-    return total_loss, correct, total, acc
+    return total_loss/len(dl), correct, total, acc
 
 
 def get_train_metric_BiLSTM(model, val_dl, criterion, batch_size):
