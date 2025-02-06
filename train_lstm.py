@@ -198,7 +198,7 @@ def train():
             _, predicted = torch.max(out, 1)
             correct_predictions += (predicted == y_batch).sum().item()
             total_predictions += y_batch.size(0)
-            if i % 10 == 0:  # Debugging step every 10 batches
+            if i % 50 == 0:  # Debugging step every 10 batches
                     logging.info(f"Epoch {epoch}, Batch {i}: Loss = {loss.item():.4f}")
 
 
@@ -211,7 +211,7 @@ def train():
 
         logging.info(
             f"Epoch: {epoch:3d} |"
-            f" Validation Loss: {val_loss/len(val_dl):.2f}, Validation Acc.: {val_acc:2.2%}, "
+            f" Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}, "
             f"Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}"
         )
 

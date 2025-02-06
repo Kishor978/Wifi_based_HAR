@@ -63,7 +63,7 @@ def get_train_metric(model, dl, criterion, BATCH_SIZE):
 
         acc = correct / total
 
-    return total_loss/len(dl), correct, total, acc
+    return total_loss, correct, total, acc
 
 
 def get_train_metric_BiLSTM(model, val_dl, criterion, batch_size):
