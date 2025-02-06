@@ -18,8 +18,8 @@ AMP_MIN, AMP_MAX = 0.0, 577.6582
 class CSIDataset(Dataset):
     """CSI Dataset."""
 
-    def __init__(self, csv_files, window_size=32, step=1):
-
+    def __init__(self, csv_files, window_size=32, step=1,is_training=False):
+        self.is_training = is_training
         self.amplitudes, self.phases, self.labels = read_all_data_from_files(csv_files)
 
         self.amplitudes = calibrate_amplitude(self.amplitudes)
@@ -89,7 +89,13 @@ class CSIDataset(Dataset):
         all_xs, all_ys = [], []
 
         for index in range(idx, idx + self.window):
+            if self.is_training:
+                # Add Gaussian noise to amplitudes during training
+                noise = np.random.normal(0, 0.01, size=all_xs.shape)
+                all_xs += noise
             all_xs.append(np.append(self.amplitudes[index], self.amplitudes_pca[index]))
+        
+            
 
         return np.array(all_xs), self.class_to_idx[self.labels[idx + self.window - 1]]
 
