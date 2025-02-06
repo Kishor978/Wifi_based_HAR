@@ -89,13 +89,14 @@ class CSIDataset(Dataset):
         all_xs, all_ys = [], []
 
         for index in range(idx, idx + self.window):
+            features = np.append(self.amplitudes[index], self.amplitudes_pca[index])
+
             if self.is_training:
                 # Add Gaussian noise to amplitudes during training
-                noise = np.random.normal(0, 0.01, size=all_xs.shape)
-                all_xs += noise
-            all_xs.append(np.append(self.amplitudes[index], self.amplitudes_pca[index]))
-        
-            
+                noise = np.random.normal(0, 0.01, size=features.shape)
+                features += noise
+
+            all_xs.append(features)
 
         return np.array(all_xs), self.class_to_idx[self.labels[idx + self.window - 1]]
 

@@ -83,8 +83,8 @@ def load_data():
     )
 
     # Initialize datasets with the same parameters
-    train_dataset = CSIDataset(train_sessions, window_size=SEQ_DIM, step=DATA_STEP)
-    val_dataset = CSIDataset(val_sessions, window_size=SEQ_DIM, step=DATA_STEP )
+    train_dataset = CSIDataset(train_sessions, window_size=SEQ_DIM, step=DATA_STEP,is_training=True)
+    val_dataset = CSIDataset(val_sessions, window_size=SEQ_DIM, step=DATA_STEP,is_training=False )
     logging.info("Data is loaded...")
 
     trn_dl = DataLoader(
