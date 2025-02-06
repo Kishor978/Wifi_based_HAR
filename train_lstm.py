@@ -148,7 +148,7 @@ def train():
     )
     model = model.double().to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_inv)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)  # L2 regularization
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE,weight_decay=1e-4)  # L2 regularization
     scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.5,patience=5,)
 
     # Load checkpoint if available
@@ -175,6 +175,8 @@ def train():
             enumerate(trn_dl), total=len(trn_dl), desc="Training epoch: "
         ):
             if x_batch.size(0) != BATCH_SIZE:
+                logging.warning(f"Skipping batch {i} due to inconsistent size: {x_batch.size(0)}")
+
                 continue
             print("Training epoch: ", epoch)
             model.init_hidden(x_batch.size(0))
@@ -196,6 +198,9 @@ def train():
             _, predicted = torch.max(out, 1)
             correct_predictions += (predicted == y_batch).sum().item()
             total_predictions += y_batch.size(0)
+            if i % 10 == 0:  # Debugging step every 10 batches
+                    logging.info(f"Epoch {epoch}, Batch {i}: Loss = {loss.item():.4f}")
+
 
         train_accuracy = correct_predictions / total_predictions
 
