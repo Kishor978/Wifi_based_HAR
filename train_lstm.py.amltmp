@@ -9,7 +9,7 @@ from dataset_loader import CSIDataset
 from metrics import get_train_metric
 from models import LSTMClassifier
 from tqdm import tqdm
-
+from sklearn.model_selection import train_test_split    
 # Configure logging
 log_filename = "training.log"
 logging.basicConfig(
@@ -28,7 +28,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure (match your dataset_loader.py)
-DATASET_FOLDER = "../dataset"
+DATASET_FOLDER = "./dataset"
 DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
 DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
 
