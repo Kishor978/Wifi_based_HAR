@@ -73,7 +73,7 @@ def get_train_metric_BiLSTM(model, val_dl, criterion, batch_size):
     total_predictions = 0
 
     with torch.no_grad():  # No need to calculate gradients during evaluation
-        for x_batch, y_batch in val_dl:
+        for x_batch, y_batch in tqdm(val_dl, total=len(val_dl), desc="Validation epoch: "):
             if x_batch.size(0) != batch_size:
                 continue
 
