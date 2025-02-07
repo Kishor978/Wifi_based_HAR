@@ -89,14 +89,20 @@ class CSIDataset(Dataset):
         all_xs, all_ys = [], []
 
         for index in range(idx, idx + self.window):
-            features = np.append(self.amplitudes[index], self.amplitudes_pca[index])
+        # Load the amplitude and PCA data for this timestep
+            amplitude = self.amplitudes[index]
+            pca = self.amplitudes_pca[index]
 
+            # Combine features
+            combined = np.append(amplitude, pca)
+
+            # Add noise to this individual sample (not the entire window)
             if self.is_training:
-                # Add Gaussian noise to amplitudes during training
-                noise = np.random.normal(0, 0.01, size=features.shape)
-                features += noise
+                noise = np.random.normal(0, 0.01, size=combined.shape)
+                combined += noise
 
-            all_xs.append(features)
+            all_xs.append(combined)
+
 
         return np.array(all_xs), self.class_to_idx[self.labels[idx + self.window - 1]]
 
