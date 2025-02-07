@@ -27,7 +27,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 logging.info("Device: {}".format(device))
 
-# Define dataset structure (match your dataset_loader.py)
+# Define dataset structure 
 DATASET_FOLDER = "./dataset"
 DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
 DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
@@ -160,7 +160,10 @@ def train():
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         start_epoch = checkpoint["epoch"] + 1
         best_acc = checkpoint["best_acc"]
+        logging.info(f"Resuming from epoch {start_epoch}")
+
     except FileNotFoundError:
+        start_epoch = 1
         logging.info("No checkpoint found, starting training from scratch.")
 
     # training loop

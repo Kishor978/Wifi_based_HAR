@@ -4,7 +4,8 @@ from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+import os
+from sklearn.model_selection import train_test_split
 from dataset_loader import CSIDataset
 from models import CNN_BiLSTM_Attention
 from metrics import get_train_metric_BiLSTM
@@ -13,12 +14,16 @@ from metrics import get_train_metric_BiLSTM
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("training.log"), logging.StreamHandler()],
+    handlers=[logging.FileHandler("training_bilstmAttenetion.log"), logging.StreamHandler()],
 )
 
 # Cuda support
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
+
+DATASET_FOLDER = "./dataset"
+DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
+DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
 
 # Model parameters
 input_dim = 468
@@ -29,8 +34,8 @@ dropout_rate = 0.0
 bidirectional = False
 SEQ_DIM = 1024
 DATA_STEP = 8
-BATCH_SIZE = 4
-EPOCHS_NUM = 1
+BATCH_SIZE = 16
+EPOCHS_NUM = 100
 LEARNING_RATE = 0.00146
 
 class_weights = (
@@ -43,23 +48,25 @@ logging.info("class_weights_inv: {}".format(class_weights_inv))
 
 
 def load_data():
-    logging.info("Loading data...")
-    train_dataset = CSIDataset(
-        [
-            ".\\dataset\\bedroom_lviv\\1",
-            ".\\dataset\\bedroom_lviv\\2",
-            ".\\dataset\\bedroom_lviv\\3",
-            ".\\dataset\\bedroom_lviv\\4",
-            ".\\dataset\\vitalnia_lviv\\1",
-            ".\\dataset\\vitalnia_lviv\\2",
-            ".\\dataset\\vitalnia_lviv\\3",
-            ".\\dataset\\vitalnia_lviv\\4",
-        ],
-        SEQ_DIM,
-        DATA_STEP,
+    # List all sessions across rooms
+    all_sessions = []
+    for room_idx, room in enumerate(DATA_ROOMS):
+        for subroom in DATA_SUBROOMS[room_idx]:
+            session_path = os.path.join(DATASET_FOLDER, room, subroom)
+            all_sessions.append(session_path)
+
+    # Split sessions into train/val (80/20)
+    train_sessions, val_sessions = train_test_split(
+        all_sessions, test_size=0.2, random_state=42, shuffle=True
     )
 
-    val_dataset = train_dataset
+    # Initialize datasets with the same parameters
+    train_dataset = CSIDataset(
+        train_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=True
+    )
+    val_dataset = CSIDataset(
+        val_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
+    )
     logging.info("Data is loaded...")
 
     trn_dl = DataLoader(
@@ -72,7 +79,7 @@ def load_data():
     return trn_dl, val_dl
 
 
-def save_checkpoint(state, filename="checkpoint.pth"):
+def save_checkpoint(state, filename="CNN_BiLSTM_Attention_checkpoint.pth"):
     torch.save(state, filename)
 
 
@@ -101,11 +108,13 @@ def train():
     model = model.double().to(device)
 
     criterion = nn.CrossEntropyLoss(weight=class_weights_inv)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.5)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4
+    )
+    scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.5, patience=3)
 
     # Load checkpoint if available
-    checkpoint_path = "checkpoint.pth"
+    checkpoint_path = "CNN_BiLSTM_Attention_checkpoint.pth"
     try:
         checkpoint = load_checkpoint(checkpoint_path)
         model.load_state_dict(checkpoint["model_state_dict"])
@@ -129,6 +138,9 @@ def train():
             enumerate(trn_dl), total=len(trn_dl), desc=f"Training epoch {epoch}"
         ):
             if x_batch.size(0) != BATCH_SIZE:
+                logging.warning(
+                    f"Skipping batch {i} due to inconsistent size: {x_batch.size(0)}"
+                )
                 continue
 
             x_batch = x_batch.unsqueeze(1).double().to(device)
