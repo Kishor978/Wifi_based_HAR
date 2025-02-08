@@ -164,5 +164,5 @@ cython_debug/
 dataset/
 Images/
 
-saved_models/
+*.pkl
 *.pth
