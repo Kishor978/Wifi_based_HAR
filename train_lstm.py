@@ -13,6 +13,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedShuffleSplit
 import numpy as np
 
+
+
 # Configure logging
 log_filename = "training.log"
 logging.basicConfig(
@@ -130,6 +132,9 @@ def load_data():
 
 
 def train():
+    save_dir = "saved_models"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
     patience, trials, best_acc = 100, 0, 0
     trn_dl, val_dl = load_data()
 
@@ -225,7 +230,7 @@ def train():
         if val_acc > best_acc:
             trials = 0
             best_acc = val_acc
-            torch.save(model.state_dict(), "saved_models/lstm_classifier_best.pth")
+            torch.save(model.state_dict(), os.path.join(save_dir, "lstm_classifier_best.pth"))
             logging.info(
                 f"Epoch {epoch} best model saved with accuracy: {best_acc:2.2%}"
             )
