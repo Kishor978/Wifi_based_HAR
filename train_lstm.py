@@ -9,9 +9,10 @@ from dataset_loader import CSIDataset
 from metrics import get_train_metric
 from models import LSTMClassifier
 from tqdm import tqdm
-from sklearn.model_selection import train_test_split   
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedShuffleSplit
-import numpy as np 
+import numpy as np
+
 # Configure logging
 log_filename = "training.log"
 logging.basicConfig(
@@ -29,7 +30,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 logging.info("Device: {}".format(device))
 
-# Define dataset structure 
+# Define dataset structure
 DATASET_FOLDER = "./dataset"
 DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
 DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
@@ -71,6 +72,7 @@ def load_checkpoint(filename="checkpoint.pth"):
     logging.info(f"Checkpoint loaded: {filename}")
     return checkpoint
 
+
 def get_session_majority_class(session_path):
     """Load labels from a session and return its majority class."""
     # Load labels for this session (modify based on your data structure)
@@ -79,6 +81,7 @@ def get_session_majority_class(session_path):
     labels = [dataset.labels[i] for i in range(len(dataset))]
     majority_class = max(set(labels), key=labels.count)
     return majority_class
+
 
 def load_data():
     # List all sessions
@@ -91,6 +94,7 @@ def load_data():
     # Get majority class for each session
     session_labels = []
     for session in all_sessions:
+        print("session: ", session)
         majority_class = get_session_majority_class(session)
         session_labels.append(majority_class)
 
@@ -101,8 +105,12 @@ def load_data():
     val_sessions = [all_sessions[i] for i in val_indices]
 
     # Create datasets
-    train_dataset = CSIDataset(train_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=True)
-    val_dataset = CSIDataset(val_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=False)
+    train_dataset = CSIDataset(
+        train_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=True
+    )
+    val_dataset = CSIDataset(
+        val_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
+    )
 
     # Normalize using training stats
     train_mean = np.mean(train_dataset.amplitudes)
@@ -114,43 +122,11 @@ def load_data():
 
     # DataLoaders
     trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)  # No shuffle for val!
+    val_dl = DataLoader(
+        val_dataset, batch_size=BATCH_SIZE, shuffle=False
+    )  # No shuffle for val!
 
     return trn_dl, val_dl
-
-# def load_data():
-#     logging.info("Loading data...")
-
-#     train_dataset = CSIDataset(
-#         [
-#             ".//dataset//bedroom_lviv//1",
-#             ".//dataset//bedroom_lviv//2",
-#             ".//dataset//bedroom_lviv//3",
-#             ".//dataset//parents_home//1",
-#             ".//dataset//vitalnia_lviv//1",
-#             ".//dataset//vitalnia_lviv//2",
-#             ".//dataset//vitalnia_lviv//3",
-#             ".//dataset//vitalnia_lviv//4",        
-#         ],
-#         SEQ_DIM,
-#         DATA_STEP,
-#     )
-
-#     val_dataset = CSIDataset([
-#         ".//dataset//bedroom_lviv//4",
-#         ".//dataset//vitalnia_lviv//5"
-#     ], SEQ_DIM)
-
-#     logging.info("Data is loaded...")
-
-#     trn_dl = DataLoader(
-#         train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0
-#     )
-#     val_dl = DataLoader(
-#         val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0
-#     )
-
-#     return trn_dl, val_dl
 
 
 def train():
@@ -169,8 +145,15 @@ def train():
     )
     model = model.double().to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_inv)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE,weight_decay=1e-4)  # L2 regularization
-    scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.5,patience=5,)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4
+    )  # L2 regularization
+    scheduler = ReduceLROnPlateau(
+        optimizer,
+        "min",
+        factor=0.5,
+        patience=5,
+    )
 
     # Load checkpoint if available
     checkpoint_filename = "checkpoint.pth"
@@ -199,7 +182,9 @@ def train():
             enumerate(trn_dl), total=len(trn_dl), desc="Training epoch: "
         ):
             if x_batch.size(0) != BATCH_SIZE:
-                logging.warning(f"Skipping batch {i} due to inconsistent size: {x_batch.size(0)}")
+                logging.warning(
+                    f"Skipping batch {i} due to inconsistent size: {x_batch.size(0)}"
+                )
 
                 continue
             print("Training epoch: ", epoch)
@@ -223,8 +208,7 @@ def train():
             correct_predictions += (predicted == y_batch).sum().item()
             total_predictions += y_batch.size(0)
             if i % 50 == 0:  # Debugging step every 10 batches
-                    logging.info(f"Epoch {epoch}, Batch {i}: Loss = {loss.item():.4f}")
-
+                logging.info(f"Epoch {epoch}, Batch {i}: Loss = {loss.item():.4f}")
 
         train_accuracy = correct_predictions / total_predictions
 
