@@ -96,7 +96,7 @@ def main():
         output_dim,
         BATCH_SIZE,
     )
-    model.load_state_dict(torch.load(".\\saved_models\\simple_lstm_best.pth"))
+    model.load_state_dict(torch.load(".\\saved_models\\lstm_classifier_best_final.pth"))
     model = model.to(device).double()
 
     model.eval()

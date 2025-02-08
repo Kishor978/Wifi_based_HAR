@@ -9,7 +9,9 @@ from dataset_loader import CSIDataset
 from metrics import get_train_metric
 from models import LSTMClassifier
 from tqdm import tqdm
-from sklearn.model_selection import train_test_split    
+from sklearn.model_selection import train_test_split   
+from sklearn.model_selection import StratifiedShuffleSplit
+import numpy as np 
 # Configure logging
 log_filename = "training.log"
 logging.basicConfig(
@@ -69,33 +71,52 @@ def load_checkpoint(filename="checkpoint.pth"):
     logging.info(f"Checkpoint loaded: {filename}")
     return checkpoint
 
+def get_session_majority_class(session_path):
+    """Load labels from a session and return its majority class."""
+    # Load labels for this session (modify based on your data structure)
+    # Example: Assuming CSIDataset can load a single session
+    dataset = CSIDataset([session_path], window_size=1, step=1)
+    labels = [dataset.labels[i] for i in range(len(dataset))]
+    majority_class = max(set(labels), key=labels.count)
+    return majority_class
+
 def load_data():
-    # List all sessions across rooms
+    # List all sessions
     all_sessions = []
     for room_idx, room in enumerate(DATA_ROOMS):
         for subroom in DATA_SUBROOMS[room_idx]:
             session_path = os.path.join(DATASET_FOLDER, room, subroom)
             all_sessions.append(session_path)
 
-    # Split sessions into train/val (80/20)
-    train_sessions, val_sessions = train_test_split(
-        all_sessions, test_size=0.2, random_state=42, shuffle=True
-    )
+    # Get majority class for each session
+    session_labels = []
+    for session in all_sessions:
+        majority_class = get_session_majority_class(session)
+        session_labels.append(majority_class)
 
-    # Initialize datasets with the same parameters
-    train_dataset = CSIDataset(train_sessions, window_size=SEQ_DIM, step=DATA_STEP,is_training=True)
-    val_dataset = CSIDataset(val_sessions, window_size=SEQ_DIM, step=DATA_STEP,is_training=False )
-    logging.info("Data is loaded...")
+    # Stratified split
+    split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    train_indices, val_indices = next(split.split(all_sessions, session_labels))
+    train_sessions = [all_sessions[i] for i in train_indices]
+    val_sessions = [all_sessions[i] for i in val_indices]
 
-    trn_dl = DataLoader(
-        train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0
-    )
-    val_dl = DataLoader(
-        val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0
-    )
+    # Create datasets
+    train_dataset = CSIDataset(train_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=True)
+    val_dataset = CSIDataset(val_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=False)
+
+    # Normalize using training stats
+    train_mean = np.mean(train_dataset.amplitudes)
+    train_std = np.std(train_dataset.amplitudes)
+    train_dataset.normalize_mean = train_mean
+    train_dataset.normalize_std = train_std
+    val_dataset.normalize_mean = train_mean
+    val_dataset.normalize_std = train_std
+
+    # DataLoaders
+    trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)  # No shuffle for val!
 
     return trn_dl, val_dl
-
 
 # def load_data():
 #     logging.info("Loading data...")
