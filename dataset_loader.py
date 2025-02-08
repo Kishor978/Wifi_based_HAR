@@ -64,11 +64,11 @@ class CSIDataset(Dataset):
         self.class_to_idx = {
             "standing": 0,
             "walking": 1,
-            "get_down": 2,
-            "sitting": 3,
-            "get_up": 4,
-            "lying": 5,
-            "no_person": 6,
+            # "get_down": 2,
+            "sitting": 2,
+            # "get_up": 4,
+            "lying": 3,
+            "no_person": 4,
         }
         self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
 

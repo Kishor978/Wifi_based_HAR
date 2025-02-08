@@ -31,7 +31,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "./dataset"
+DATASET_FOLDER = "./kaggle/input/csi-data"
 DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
 DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
 
@@ -39,7 +39,7 @@ DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
 input_dim = 468  # 114 subcarriers * 4 antenna_pairs * 2 (amplitude + phase)
 hidden_dim = 256
 layer_dim = 2
-output_dim = 7
+output_dim = 5
 dropout_rate = 0.5
 bidirectional = False
 SEQ_DIM = 1024
@@ -50,7 +50,7 @@ EPOCHS_NUM = 100
 LEARNING_RATE = 0.00146
 
 class_weights = (
-    torch.Tensor([0.113, 0.439, 0.0379, 0.1515, 0.0379, 0.1212, 0.1363])
+    torch.Tensor([0.113, 0.439, 0.1515, 0.1212, 0.1363])
     .double()
     .to(device)
 )
@@ -215,7 +215,6 @@ def train():
         val_loss, val_correct, val_total, val_acc = get_train_metric(
             model, val_dl, criterion, BATCH_SIZE
         )
-        # train_loss, train_correct, train_total, train_acc = get_train_metric(model, trn_dl, criterion, BATCH_SIZE)
 
         logging.info(
             f"Epoch: {epoch:3d} |"
