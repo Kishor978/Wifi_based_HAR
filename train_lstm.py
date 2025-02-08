@@ -31,7 +31,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "/kaggle/input/csi-data"
+DATASET_FOLDER = "/kaggle/input/csi-data/dataset"
 DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
 DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
 
