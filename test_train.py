@@ -197,7 +197,7 @@ def train():
                 )
 
                 continue
-            print("Training epoch: ", epoch)
+            # print("Training epoch: ", epoch)
             model.init_hidden(x_batch.size(0))
             x_batch, y_batch = x_batch.double().to(device), y_batch.double().to(device)
 
