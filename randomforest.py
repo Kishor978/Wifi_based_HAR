@@ -122,7 +122,7 @@ logging.basicConfig(
     handlers=[logging.FileHandler("training_random_forest.log"), logging.StreamHandler()],
 )
 
-DATASET_FOLDER = "./notebooks"
+DATASET_FOLDER = "/kaggle/input/merged-csi"
 SEQ_DIM = 1024
 DATA_STEP = 8
 N_ESTIMATORS = 100  # Number of trees in Random Forest
