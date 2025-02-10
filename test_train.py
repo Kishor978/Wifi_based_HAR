@@ -46,7 +46,7 @@ DATA_STEP = 8
 
 BATCH_SIZE = 16
 EPOCHS_NUM = 100
-LEARNING_RATE = 0.000146
+LEARNING_RATE = 0.0007
 
 class_weights = torch.Tensor([0.4225, 1.3319, 1.4432, 1.6811, 1.6820]).double().to(device)
 # class_weights_inv = 1 / class_weights
@@ -104,20 +104,6 @@ def load_data():
         val_csi, val_labels, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
     )
 
-    # Compute class weights
-    # unique_classes, class_counts = np.unique(train_labels, return_counts=True)
-    # class_weights = 1.0 / class_counts
-    # class_to_idx = {
-    # "standing": 0,
-    # "walking": 1,
-    # "sitting": 2,
-    # "lying": 3,
-    # "no_person": 4,}
-
-    # sample_weights = np.array([class_weights[class_to_idx[label]] for label in train_labels])
-
-    # # Weighted Sampler (for training only)
-    # sampler = WeightedRandomSampler(sample_weights[:len(train_csi)], len(train_csi))
 
     # Normalize using training stats
     train_mean = np.mean(train_csi)
