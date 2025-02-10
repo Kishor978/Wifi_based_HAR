@@ -4,15 +4,14 @@ import torch
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-
+from torch.utils.data.sampler import WeightedRandomSampler
 from dataset_loader import CSIDataset
 from metrics import get_train_metric
 from models import LSTMClassifier
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedShuffleSplit
 import numpy as np
-
+from utils import read_csi_data_from_csv, read_labels_from_csv
 
 
 # Configure logging
@@ -33,9 +32,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "/kaggle/input/csi-data/dataset"
-DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
-DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
+DATASET_FOLDER = "/kaggle/input/merged-csi"
 
 # LSTM Model parameters
 input_dim = 468  # 114 subcarriers * 4 antenna_pairs * 2 (amplitude + phase)
@@ -51,11 +48,7 @@ BATCH_SIZE = 16
 EPOCHS_NUM = 100
 LEARNING_RATE = 0.00146
 
-class_weights = (
-    torch.Tensor([0.113, 0.439, 0.1515, 0.1212, 0.1363])
-    .double()
-    .to(device)
-)
+class_weights = torch.Tensor([0.113, 0.439, 0.1515, 0.1212, 0.1363]).double().to(device)
 class_weights_inv = 1 / class_weights
 logging.info("class_weights_inv: {}".format(class_weights_inv))
 
@@ -75,48 +68,60 @@ def load_checkpoint(filename="checkpoint.pth"):
     return checkpoint
 
 
-def get_session_majority_class(session_path):
-    """Load labels from a session and return its majority class."""
-    # Load labels for this session (modify based on your data structure)
-    # Example: Assuming CSIDataset can load a single session
-    dataset = CSIDataset([session_path], window_size=1, step=1)
-    labels = [dataset.labels[i] for i in range(len(dataset))]
-    majority_class = max(set(labels), key=labels.count)
-    return majority_class
+def read_all_data_from_files(data_path, label_path, is_five_hhz=True, antenna_pairs=4):
+    """
+    Read CSI and labels from merged CSV files.
+    """
+    amplitudes, phases = read_csi_data_from_csv(data_path, is_five_hhz, antenna_pairs)
+    labels, valid_indices = read_labels_from_csv(label_path, len(amplitudes))
+    # # print(len(valid_indices))
+    # # print(len(amplitudes))
+    # print(phases.shape)
+    # Apply the filter
+    amplitudes, phases = amplitudes[valid_indices], phases[valid_indices]
+
+    return amplitudes, phases, labels
 
 
 def load_data():
-    # List all sessions
-    all_sessions = []
-    for room_idx, room in enumerate(DATA_ROOMS):
-        for subroom in DATA_SUBROOMS[room_idx]:
-            session_path = os.path.join(DATASET_FOLDER, room, subroom)
-            all_sessions.append(session_path)
-
-    # Get majority class for each session
-    session_labels = []
-    for session in all_sessions:
-        print("session: ", session)
-        majority_class = get_session_majority_class(session)
-        session_labels.append(majority_class)
+    # Load merged CSI data and labels
+    data_path = os.path.join(DATASET_FOLDER, "data.csv")
+    label_path = os.path.join(DATASET_FOLDER, "label.csv")
+    amplitudes, phases, labels = read_all_data_from_files(data_path, label_path)
+    # Concatenate amplitude and phase data for input features
+    csi_data = np.hstack((amplitudes, phases))
 
     # Stratified split
-    split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-    train_indices, val_indices = next(split.split(all_sessions, session_labels))
-    train_sessions = [all_sessions[i] for i in train_indices]
-    val_sessions = [all_sessions[i] for i in val_indices]
+    train_csi, val_csi, train_labels, val_labels = train_test_split(
+        csi_data, labels, test_size=0.2, stratify=labels, random_state=42
+    )
 
     # Create datasets
     train_dataset = CSIDataset(
-        train_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=True
+        train_csi, train_labels, window_size=SEQ_DIM, step=DATA_STEP, is_training=True
     )
     val_dataset = CSIDataset(
-        val_sessions, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
+        val_csi, val_labels, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
     )
 
+    # Compute class weights
+    # unique_classes, class_counts = np.unique(train_labels, return_counts=True)
+    # class_weights = 1.0 / class_counts
+    # class_to_idx = {
+    # "standing": 0,
+    # "walking": 1,
+    # "sitting": 2,
+    # "lying": 3,
+    # "no_person": 4,}
+
+    # sample_weights = np.array([class_weights[class_to_idx[label]] for label in train_labels])
+
+    # # Weighted Sampler (for training only)
+    # sampler = WeightedRandomSampler(sample_weights[:len(train_csi)], len(train_csi))
+
     # Normalize using training stats
-    train_mean = np.mean(train_dataset.amplitudes)
-    train_std = np.std(train_dataset.amplitudes)
+    train_mean = np.mean(train_csi)
+    train_std = np.std(train_csi)
     train_dataset.normalize_mean = train_mean
     train_dataset.normalize_std = train_std
     val_dataset.normalize_mean = train_mean
@@ -227,14 +232,17 @@ def train():
             f"Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}"
         )
 
-        print(            f"Epoch: {epoch:3d} |"
+        print(
+            f"Epoch: {epoch:3d} |"
             f" Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}, "
             f"Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}"
-)
+        )
         if val_acc > best_acc:
             trials = 0
             best_acc = val_acc
-            torch.save(model.state_dict(), os.path.join(save_dir, "lstm_classifier_best.pth"))
+            torch.save(
+                model.state_dict(), os.path.join(save_dir, "lstm_classifier_best.pth")
+            )
             logging.info(
                 f"Epoch {epoch} best model saved with accuracy: {best_acc:2.2%}"
             )

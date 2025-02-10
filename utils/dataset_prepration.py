@@ -3,8 +3,11 @@ import pandas as pd
 import os
 
 DATASET_FOLDER = "../dataset"
-DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
-DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
+# DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
+# DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
+DATA_ROOMS = ["merged"]
+DATA_SUBROOMS=[["1"]]
+
 
 SUBCARRIES_NUM_TWO_HHZ = 56
 SUBCARRIES_NUM_FIVE_HHZ = 114
@@ -24,6 +27,7 @@ def read_csi_data_from_csv(path_to_csv, is_five_hhz=False, antenna_pairs=4):
     """
 
     data = pd.read_csv(path_to_csv, header=None).values
+    print("shape",data.shape)
 
     if is_five_hhz:
         subcarries_num = SUBCARRIES_NUM_FIVE_HHZ
@@ -31,8 +35,8 @@ def read_csi_data_from_csv(path_to_csv, is_five_hhz=False, antenna_pairs=4):
         subcarries_num = SUBCARRIES_NUM_TWO_HHZ
 
     # 1 -> to skip subcarriers numbers in data
-    amplitudes = data[:, subcarries_num * 1:subcarries_num * (1 + antenna_pairs)]
-    phases = data[:, subcarries_num * (1 + antenna_pairs):subcarries_num * (1 + 2 * antenna_pairs)]
+    amplitudes = data[:, :subcarries_num *  antenna_pairs]
+    phases = data[:, subcarries_num * antenna_pairs:]
 
     return amplitudes, phases
 
