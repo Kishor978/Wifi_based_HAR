@@ -34,20 +34,20 @@ logging.info("Device: {}".format(device))
 DATASET_FOLDER = "E:\\Wifi_based_HAR\\preprocessing\\merged"
 
 # LSTM Model parameters
-input_dim = 64  # 114 subcarriers * 4 antenna_pairs * 2 (amplitude + phase)
+input_dim = 64  
 hidden_dim = 256
 layer_dim = 2
-output_dim = 5
-dropout_rate = 0.2
+output_dim = 4
+dropout_rate = 0.3
 bidirectional = False
 SEQ_DIM = 1024
 DATA_STEP = 8
 
 BATCH_SIZE = 16
 EPOCHS_NUM = 100
-LEARNING_RATE = 0.0007
+LEARNING_RATE = 0.0009
 
-class_weights = torch.Tensor([0.4225, 1.3319, 1.4432, 1.6811, 1.6820]).double().to(device)
+# class_weights = torch.Tensor([0.4225, 1.3319, 1.4432, 1.6811, 1.6820]).double().to(device)
 # class_weights_inv = 1 / class_weights
 # logging.info("class_weights_inv: {}".format(class_weights_inv))
 
@@ -140,7 +140,7 @@ def train():
         BATCH_SIZE,
     )
     model = model.double().to(device)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(
         model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4
     )  # L2 regularization
