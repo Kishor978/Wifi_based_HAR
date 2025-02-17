@@ -4,14 +4,13 @@ import torch
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from torch.utils.data.sampler import WeightedRandomSampler
-from dataset_loader import CSIDataset
+from loader import CSIDataset
 from metrics import get_train_metric
-from models import LSTMClassifier
+from LSTM_classifier import LSTMClassifier
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 import numpy as np
-from utils import read_csi_data_from_csv, read_labels_from_csv
+from self_utils import read_csi_data_from_csv, read_labels_from_csv
 
 
 # Configure logging
@@ -32,10 +31,10 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "E:\\Wifi_based_HAR\\notebooks"
+DATASET_FOLDER = "E:\\Wifi_based_HAR\\preprocessing\\merged"
 
 # LSTM Model parameters
-input_dim = 468  # 114 subcarriers * 4 antenna_pairs * 2 (amplitude + phase)
+input_dim = 64  # 114 subcarriers * 4 antenna_pairs * 2 (amplitude + phase)
 hidden_dim = 256
 layer_dim = 2
 output_dim = 5
@@ -68,17 +67,17 @@ def load_checkpoint(filename="checkpoint.pth"):
     return checkpoint
 
 
-def read_all_data_from_files(data_path, label_path, is_five_hhz=True, antenna_pairs=4):
+def read_all_data_from_files(data_path, label_path,  antenna_pairs=1):
     """
     Read CSI and labels from merged CSV files.
     """
-    amplitudes, phases = read_csi_data_from_csv(data_path, is_five_hhz, antenna_pairs)
-    labels, valid_indices = read_labels_from_csv(label_path, len(amplitudes))
+    amplitudes, phases = read_csi_data_from_csv(data_path,  antenna_pairs)
+    labels = read_labels_from_csv(label_path, len(amplitudes))
     # # print(len(valid_indices))
     # # print(len(amplitudes))
     # print(phases.shape)
     # Apply the filter
-    amplitudes, phases = amplitudes[valid_indices], phases[valid_indices]
+    amplitudes, phases = amplitudes[:], phases[:]
 
     return amplitudes, phases, labels
 
@@ -88,6 +87,8 @@ def load_data():
     data_path = os.path.join(DATASET_FOLDER, "data.csv")
     label_path = os.path.join(DATASET_FOLDER, "label.csv")
     amplitudes, phases, labels = read_all_data_from_files(data_path, label_path)
+    print("label shape",labels.shape)
+    print("amplitudes shape",amplitudes.shape)
     # Concatenate amplitude and phase data for input features
     csi_data = np.hstack((amplitudes, phases))
 
@@ -103,7 +104,6 @@ def load_data():
     val_dataset = CSIDataset(
         val_csi, val_labels, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
     )
-
 
     # Normalize using training stats
     train_mean = np.mean(train_csi)

@@ -114,6 +114,9 @@ from sklearn.model_selection import train_test_split
 from dataset_loader import CSIDataset
 import joblib  # For saving the model
 from utils import  read_csi_data_from_csv, read_labels_from_csv
+from xgboost import XGBClassifier
+import pickle
+
 
 # Configure logging
 logging.basicConfig(
@@ -122,7 +125,7 @@ logging.basicConfig(
     handlers=[logging.FileHandler("training_random_forest.log"), logging.StreamHandler()],
 )
 
-DATASET_FOLDER = "/kaggle/input/merged-csi"
+DATASET_FOLDER = "./notebooks"
 SEQ_DIM = 1024
 DATA_STEP = 8
 N_ESTIMATORS = 100  # Number of trees in Random Forest
@@ -134,15 +137,24 @@ BATCH_SIZE = 16  # Not used directly, but for feature extraction
 MODEL_PATH = "saved_models/random_forest_model.pkl"
 
 
-def extract_features_and_labels(dataset):
-    """Extract features (flattened CSI data) and labels from dataset"""
-    features, labels = [], []
-
-    for x_batch, y_batch in dataset:
-        features.append(x_batch.flatten())  # Convert tensor to NumPy array
-        labels.append(y_batch)  # Convert tensor to scalar
+def extract_features_and_labels(dataset, batch_size=512):
+    """Generator function to yield data in batches."""
+    num_samples = len(dataset)
     
-    return np.array(features), np.array(labels)
+    for i in range(0, num_samples, batch_size):
+        batch = [dataset[j] for j in range(i, min(i + batch_size, len(dataset)))]
+
+        X_batch, y_batch = zip(*batch)  # Unpack batch
+        
+        X_batch = np.array(X_batch)  # Convert list to NumPy array
+        y_batch = np.array(y_batch)  # Convert labels to NumPy array
+        
+        # Ensure X_batch is 2D (batch_size, num_features)
+        X_batch = X_batch.reshape(X_batch.shape[0], -1)
+
+        yield X_batch, y_batch  # Yield batch properly
+        
+        
 def read_all_data_from_files(data_path, label_path, is_five_hhz=True, antenna_pairs=4):
     """
     Read CSI and labels from merged CSV files.
@@ -159,11 +171,12 @@ def read_all_data_from_files(data_path, label_path, is_five_hhz=True, antenna_pa
 
 
 def load_data():
-    """Loads the dataset and splits it into training and validation sets"""
+    """Loads the dataset and processes it in batches to avoid memory overflow."""
     # Load merged CSI data and labels
     data_path = os.path.join(DATASET_FOLDER, "data.csv")
     label_path = os.path.join(DATASET_FOLDER, "label.csv")
     amplitudes, phases, labels = read_all_data_from_files(data_path, label_path)
+
     # Concatenate amplitude and phase data for input features
     csi_data = np.hstack((amplitudes, phases))
 
@@ -179,37 +192,66 @@ def load_data():
     val_dataset = CSIDataset(
         val_csi, val_labels, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
     )
-    logging.info("Extracting training features...")
-    X_train, y_train = extract_features_and_labels(train_dataset)
 
-    logging.info("Extracting validation features...")
-    X_val, y_val = extract_features_and_labels(val_dataset)
+    logging.info("Extracting training features in batches...")
+    train_batches = extract_features_and_labels(train_dataset, batch_size=512)
+    X_train, y_train = zip(*train_batches)  # Convert generator output into lists
+
+    logging.info("Extracting validation features in batches...")
+    val_batches = extract_features_and_labels(val_dataset, batch_size=512)
+    X_val, y_val = zip(*val_batches)
+
+    # Convert lists of batches to numpy arrays
+    X_train = np.vstack(X_train)
+    y_train = np.hstack(y_train)
+    X_val = np.vstack(X_val)
+    y_val = np.hstack(y_val)
 
     logging.info(f"Data loaded. Train size: {X_train.shape}, Validation size: {X_val.shape}")
     return X_train, y_train, X_val, y_val
-
+    # model = RandomForestClassifier(n_estimators=N_ESTIMATORS,max_depth=MAX_DEPTH,min_samples_leaf=MIN_SAMPLES_LEAF,min_samples_split=MIN_SAMPLES_SPLIT,bootstrap=BOOTSTRAP,random_state=42, n_jobs=-1)
 
 def train():
-    """Trains a Random Forest classifier"""
-    X_train, y_train, X_val, y_val = load_data()
+    """Trains the Random Forest model using batch-wise processing to avoid memory overflow."""
+    logging.info("Loading dataset...")
+    
+    # Load datasets in batches
+    X_train_batches, y_train_batches, X_val_batches, y_val_batches = load_data()
 
     logging.info("Initializing Random Forest...")
-    model = RandomForestClassifier(n_estimators=N_ESTIMATORS,max_depth=MAX_DEPTH,min_samples_leaf=MIN_SAMPLES_LEAF,min_samples_split=MIN_SAMPLES_SPLIT,bootstrap=BOOTSTRAP,random_state=42, n_jobs=-1)
+    model = RandomForestClassifier(
+        n_estimators=N_ESTIMATORS,
+        max_depth=MAX_DEPTH,
+        min_samples_leaf=MIN_SAMPLES_LEAF,
+        min_samples_split=MIN_SAMPLES_SPLIT,
+        bootstrap=BOOTSTRAP,
+        random_state=42,
+        n_jobs=-1
+    )
 
-    logging.info("Training model...")
-    model.fit(X_train, y_train)
+    logging.info("Training model in batches...")
+    for X_batch, y_batch in zip(X_train_batches, y_train_batches):
+        model.fit(X_batch, y_batch)  # Fit model batch-wise to avoid memory issues
+    
+    logging.info("Evaluating on validation set...")
+    y_preds = []
+    
+    for X_batch in X_val_batches:
+        y_preds.append(model.predict(X_batch))  # Predict batch-wise
+    
+    y_preds = np.hstack(y_preds)  # Combine batch-wise predictions
 
-    # Evaluate on validation data
-    y_pred = model.predict(X_val)
-    val_acc = accuracy_score(y_val, y_pred)
+    accuracy = accuracy_score(np.hstack(y_val_batches), y_preds)  # Calculate validation accuracy
+    logging.info(f"Validation Accuracy: {accuracy * 100:.2f}%")
+    print(f"Validation Accuracy: {accuracy * 100:.2f}%")
 
-    logging.info(f"Validation Accuracy: {val_acc:.2%}")
-    print(f"Validation Accuracy: {val_acc:.2%}")
-    # Save model
-    os.makedirs("saved_models", exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
-    logging.info(f"Model saved to {MODEL_PATH}")
-    print(f"Model saved to {MODEL_PATH}")
+    # Save the trained model
+    save_path = "saved_models/random_forest_model.pkl"
+    with open(save_path, "wb") as f:
+        pickle.dump(model, f)
+    
+    logging.info(f"Model saved to {save_path}")
+    print(f"Model saved to {save_path}")
 
 
 if __name__ == "__main__":

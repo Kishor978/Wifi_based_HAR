@@ -3,20 +3,17 @@ from sklearn import decomposition
 import numpy as np
 
 
-from utils import read_all_data_from_files, calibrate_amplitude, dwn_noise, hampel
+from data_calibration import  calibrate_amplitude, dwn_noise, hampel
 
-DATASET_FOLDER = "../dataset"
-DATA_ROOMS = ["bedroom_lviv", "parents_home", "vitalnia_lviv"]
-DATA_SUBROOMS = [["1", "2", "3", "4"], ["1"], ["1", "2", "3", "4", "5"]]
 
-SUBCARRIES_NUM_TWO_HHZ = 56
-SUBCARRIES_NUM_FIVE_HHZ = 114
+SUBCARRIES_NUM=52
+
 
 PHASE_MIN, PHASE_MAX = 3.1389, 3.1415
 AMP_MIN, AMP_MAX = 0.0, 577.6582
 
 
-def read_csi_data_from_csv(csis, is_five_hhz=True, antenna_pairs=4):
+def read_csi_data_from_csv(csis):
     """
     Read csi data(amplitude, phase) from .csv data
 
@@ -26,22 +23,16 @@ def read_csi_data_from_csv(csis, is_five_hhz=True, antenna_pairs=4):
     :return: (amplitudes, phases) => (np.array of shape(data len, num_of_subcarriers * antenna_pairs),
                                      np.array of shape(data len, num_of_subcarriers * antenna_pairs))
     """
-
-
-    if is_five_hhz:
-        subcarries_num = SUBCARRIES_NUM_FIVE_HHZ
-    else:
-        subcarries_num = SUBCARRIES_NUM_TWO_HHZ
-    
+    subcarries_num = SUBCARRIES_NUM
     amplitudes_list = []
     phases_list = []
 
     for data in csis:
-        if len(data) != subcarries_num * antenna_pairs * 2:
-            raise ValueError(f"Data length mismatch: expected {subcarries_num * antenna_pairs * 2}, got {len(data)}")
+        if len(data) != subcarries_num  * 2:
+            raise ValueError(f"Data length mismatch: expected {subcarries_num * 2}, got {len(data)}")
 
-        amplitudes = data[:subcarries_num * antenna_pairs]
-        phases = data[subcarries_num * antenna_pairs:]
+        amplitudes = data[:subcarries_num ]
+        phases = data[subcarries_num :]
         
         amplitudes_list.append(amplitudes)
         phases_list.append(phases)
@@ -63,16 +54,7 @@ class CSIDataset(Dataset):
  
         self.amplitudes = calibrate_amplitude(self.amplitudes)
 
-        pca = decomposition.PCA(n_components=3)
-
-        # self.phases[:, 0 * SUBCARRIES_NUM_FIVE_HHZ:1 * SUBCARRIES_NUM_FIVE_HHZ] = calibrate_amplitude(calibrate_phase(
-        #     self.phases[:, 0 * SUBCARRIES_NUM_FIVE_HHZ:1 * SUBCARRIES_NUM_FIVE_HHZ]))
-        # self.phases[:, 1 * SUBCARRIES_NUM_FIVE_HHZ:2 * SUBCARRIES_NUM_FIVE_HHZ] = calibrate_amplitude(calibrate_phase(
-        #     self.phases[:, 1 * SUBCARRIES_NUM_FIVE_HHZ:2 * SUBCARRIES_NUM_FIVE_HHZ]))
-        # self.phases[:, 2 * SUBCARRIES_NUM_FIVE_HHZ:3 * SUBCARRIES_NUM_FIVE_HHZ] = calibrate_amplitude(calibrate_phase(
-        #     self.phases[:, 2 * SUBCARRIES_NUM_FIVE_HHZ:3 * SUBCARRIES_NUM_FIVE_HHZ]))
-        # self.phases[:, 3 * SUBCARRIES_NUM_FIVE_HHZ:4 * SUBCARRIES_NUM_FIVE_HHZ] = calibrate_amplitude(calibrate_phase(
-        #     self.phases[:, 3 * SUBCARRIES_NUM_FIVE_HHZ:4 * SUBCARRIES_NUM_FIVE_HHZ]))
+        pca = decomposition.PCA(n_components=12)
 
         self.amplitudes_pca = []
 
@@ -82,36 +64,24 @@ class CSIDataset(Dataset):
             self.amplitudes[:data_len, i] = dwn_noise(hampel(self.amplitudes[:, i]))[
                 :data_len
             ]
+        print("Amplitudes shape:", self.amplitudes.shape)
+        self.amplitudes_pca = pca.fit_transform(self.amplitudes)
+        print("PCA output shape:", self.amplitudes_pca.shape)
 
-        for i in range(4):
-            self.amplitudes_pca.append(
-                pca.fit_transform(
-                    self.amplitudes[
-                        :,
-                        i * SUBCARRIES_NUM_FIVE_HHZ : (i + 1) * SUBCARRIES_NUM_FIVE_HHZ,
-                    ]
-                )
-            )
-        print("Amplitudes shape:", self.amplitudes.shape)   
         self.amplitudes_pca = np.array(self.amplitudes_pca)
-        print("PCA output shape:", self.amplitudes_pca.shape)   
-        self.amplitudes_pca = self.amplitudes_pca.reshape(
-            (
-                self.amplitudes_pca.shape[1],
-                self.amplitudes_pca.shape[0] * self.amplitudes_pca.shape[2],
-            )
-        )
-        print("PCA output", self.amplitudes_pca.shape)
+        # self.amplitudes_pca = self.amplitudes_pca.reshape(
+        #     (
+        #         self.amplitudes_pca.shape[1],
+        #         self.amplitudes_pca.shape[0] * self.amplitudes_pca.shape[2],
+        #     )
+        # )
 
         self.label_keys = list(set(self.labels))
         self.class_to_idx = {
             "standing": 0,
             "walking": 1,
-            # "get_down": 2,
-            "sitting": 2,
-            # "get_up": 4,
-            "lying": 3,
-            "no_person": 4,
+            "jumping": 2,
+            "no_person": 3,
         }
         self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
 
