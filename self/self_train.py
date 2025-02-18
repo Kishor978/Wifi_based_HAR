@@ -31,7 +31,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "/kaggle/input/my-csi"
+# DATASET_FOLDER = "/kaggle/input/my-csi"
+DATASET_FOLDER=".\\preprocessing"
 
 # LSTM Model parameters
 input_dim = 64  
@@ -124,62 +125,53 @@ def load_data():
 
 def train():
     save_dir = "saved_models"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    patience, trials, best_acc = 100, 0, 0
+    os.makedirs(save_dir, exist_ok=True)
+    
+    patience, trials, best_acc = 10, 0, 0
     trn_dl, val_dl = load_data()
 
-    start_epoch = 1
     model = LSTMClassifier(
-        input_dim,
-        hidden_dim,
-        layer_dim,
-        dropout_rate,
-        bidirectional,
-        output_dim,
-    )
-    model = model.double().to(device)
+        input_dim, hidden_dim, layer_dim, dropout_rate, bidirectional, output_dim
+    ).to(device)
 
-    criterion = nn.CrossEntropyLoss()  # Apply class weights if needed
+    criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.5, patience=5)
 
+    checkpoint_filename = os.path.join(save_dir, "checkpoint.pth")
+
     # Load checkpoint if available
-    checkpoint_filename = "checkpoint.pth"
-    try:
-        checkpoint = load_checkpoint(checkpoint_filename)
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-        start_epoch = checkpoint["epoch"] + 1
-        best_acc = checkpoint["best_acc"]
-        logging.info(f"Resuming from epoch {start_epoch}")
+    start_epoch = 1
+    if os.path.exists(checkpoint_filename):
+        try:
+            checkpoint = torch.load(checkpoint_filename)
+            model.load_state_dict(checkpoint["model_state_dict"])
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            start_epoch = checkpoint["epoch"] + 1
+            best_acc = checkpoint["best_acc"]
+            logging.info(f"Resuming from epoch {start_epoch}")
+        except (FileNotFoundError, KeyError, RuntimeError) as e:
+            logging.error(f"Checkpoint loading failed: {e}")
+    
+    logging.info("Starting training...")
 
-    except FileNotFoundError:
-        start_epoch = 1
-        logging.info("No checkpoint found, starting training from scratch.")
-
-    # Training loop
-    logging.info("Start model training")
     for epoch in range(start_epoch, EPOCHS_NUM + 1):
         model.train()
-        correct_predictions, total_predictions = 0, 0
-        epoch_loss = 0
+        epoch_loss, correct_predictions, total_predictions = 0, 0, 0
 
-        for i, (x_batch, y_batch) in tqdm(enumerate(trn_dl), total=len(trn_dl), desc=f"Training Epoch {epoch}"):
-            if x_batch.size(0) != BATCH_SIZE:
-                logging.warning(f"Skipping batch {i} due to inconsistent size: {x_batch.size(0)}")
-                continue
+        for i, (x_batch, y_batch) in tqdm(enumerate(trn_dl), total=len(trn_dl), desc=f"Epoch {epoch}"):
+            batch_size = x_batch.size(0)
 
-            x_batch, y_batch = x_batch.double().to(device), y_batch.long().to(device)  # Ensure correct data types
+            # Dynamic hidden state initialization (no more skipping small batches)
+            x_batch, y_batch = x_batch.to(device).float(), y_batch.to(device).long()
 
             # Forward pass
             out = model(x_batch)
             loss = criterion(out, y_batch)
             epoch_loss += loss.item()
 
-            # Backpropagation
+            # Backward and optimize
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -187,53 +179,41 @@ def train():
             # Compute accuracy
             _, predicted = torch.max(out, 1)
             correct_predictions += (predicted == y_batch).sum().item()
-            total_predictions += y_batch.size(0)
+            total_predictions += batch_size
 
-            if i % 50 == 0:
+            if i % 50 == 0:  # Logging every 50 batches
                 logging.info(f"Epoch {epoch}, Batch {i}: Loss = {loss.item():.4f}")
 
         train_accuracy = correct_predictions / total_predictions
-
-        # Validate
         val_loss, val_correct, val_total, val_acc = get_train_metric(model, val_dl, criterion, BATCH_SIZE)
 
         logging.info(
-            f"Epoch: {epoch:3d} |"
-            f" Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%} | "
-            f"Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}"
+            f"Epoch {epoch:3d} | Validation Loss: {val_loss/len(val_dl):.4f}, "
+            f"Validation Acc.: {val_acc:.2%}, Train Loss: {epoch_loss/len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}"
         )
 
-        print(
-            f"Epoch: {epoch:3d} |"
-            f" Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%} | "
-            f"Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}"
-        )
-
-        # Save best model
         if val_acc > best_acc:
             trials = 0
             best_acc = val_acc
             torch.save(model.state_dict(), os.path.join(save_dir, "lstm_classifier_best.pth"))
-            logging.info(f"Epoch {epoch} best model saved with accuracy: {best_acc:2.2%}")
+            logging.info(f"Epoch {epoch}: Best model saved with accuracy {best_acc:.2%}")
         else:
             trials += 1
             if trials >= patience:
-                logging.info(f"Early stopping on epoch {epoch}")
+                logging.info(f"Early stopping at epoch {epoch}")
                 break
 
         # Save checkpoint
-        save_checkpoint(
-            {
-                "epoch": epoch,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "scheduler_state_dict": scheduler.state_dict(),
-                "best_acc": best_acc,
-            },
-            checkpoint_filename,
-        )
+        torch.save({
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "best_acc": best_acc,
+        }, checkpoint_filename)
 
         scheduler.step(val_loss)
+
 
 if __name__ == "__main__":
     train()
