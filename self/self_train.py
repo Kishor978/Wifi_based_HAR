@@ -5,7 +5,7 @@ from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from loader import CSIDataset
-from metrics import get_train_metric
+from self_metrics import get_train_metric
 from LSTM_classifier import LSTMClassifier
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
