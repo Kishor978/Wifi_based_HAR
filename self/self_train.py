@@ -31,8 +31,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-# DATASET_FOLDER = "/kaggle/input/my-csi"
-DATASET_FOLDER=".\\preprocessing"
+DATASET_FOLDER = "/kaggle/input/my-csi"
+# DATASET_FOLDER=".\\preprocessing"
 
 # LSTM Model parameters
 input_dim = 64  
