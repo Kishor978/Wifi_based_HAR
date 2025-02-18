@@ -191,7 +191,8 @@ def train():
             f"Epoch {epoch:3d} | Validation Loss: {val_loss/len(val_dl):.4f}, "
             f"Validation Acc.: {val_acc:.2%}, Train Loss: {epoch_loss/len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}"
         )
-
+        print(f"Epoch {epoch:3d} | Validation Loss: {val_loss/len(val_dl):.4f}, "
+            f"Validation Acc.: {val_acc:.2%}, Train Loss: {epoch_loss/len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}")
         if val_acc > best_acc:
             trials = 0
             best_acc = val_acc
