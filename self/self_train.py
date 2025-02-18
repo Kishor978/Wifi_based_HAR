@@ -38,14 +38,14 @@ input_dim = 64
 hidden_dim = 256
 layer_dim = 2
 output_dim = 4
-dropout_rate = 0.3
+dropout_rate = 0.2
 bidirectional = False
 SEQ_DIM = 1024
 DATA_STEP = 8
 
 BATCH_SIZE = 16
 EPOCHS_NUM = 100
-LEARNING_RATE = 0.0009
+LEARNING_RATE = 0.001
 
 # class_weights = torch.Tensor([0.4225, 1.3319, 1.4432, 1.6811, 1.6820]).double().to(device)
 # class_weights_inv = 1 / class_weights
