@@ -126,6 +126,7 @@ def train():
     save_dir = "saved_models"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+
     patience, trials, best_acc = 100, 0, 0
     trn_dl, val_dl = load_data()
 
@@ -137,19 +138,12 @@ def train():
         dropout_rate,
         bidirectional,
         output_dim,
-        BATCH_SIZE,
     )
     model = model.double().to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4
-    )  # L2 regularization
-    scheduler = ReduceLROnPlateau(
-        optimizer,
-        "min",
-        factor=0.5,
-        patience=5,
-    )
+
+    criterion = nn.CrossEntropyLoss()  # Apply class weights if needed
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
+    scheduler = ReduceLROnPlateau(optimizer, "min", factor=0.5, patience=5)
 
     # Load checkpoint if available
     checkpoint_filename = "checkpoint.pth"
@@ -166,79 +160,68 @@ def train():
         start_epoch = 1
         logging.info("No checkpoint found, starting training from scratch.")
 
-    # training loop
+    # Training loop
     logging.info("Start model training")
-    for epoch in range(1, EPOCHS_NUM + 1):
-        model.train(mode=True)
-        correct_predictions = 0
-        total_predictions = 0
+    for epoch in range(start_epoch, EPOCHS_NUM + 1):
+        model.train()
+        correct_predictions, total_predictions = 0, 0
         epoch_loss = 0
-        # model.hidden = model.init_hidden(BATCH_SIZE)
-        for i, (x_batch, y_batch) in tqdm(
-            enumerate(trn_dl), total=len(trn_dl), desc="Training epoch: "
-        ):
-            if x_batch.size(0) != BATCH_SIZE:
-                logging.warning(
-                    f"Skipping batch {i} due to inconsistent size: {x_batch.size(0)}"
-                )
 
+        for i, (x_batch, y_batch) in tqdm(enumerate(trn_dl), total=len(trn_dl), desc=f"Training Epoch {epoch}"):
+            if x_batch.size(0) != BATCH_SIZE:
+                logging.warning(f"Skipping batch {i} due to inconsistent size: {x_batch.size(0)}")
                 continue
-            # print("Training epoch: ", epoch)
-            model.init_hidden(x_batch.size(0))
-            x_batch, y_batch = x_batch.double().to(device), y_batch.double().to(device)
+
+            x_batch, y_batch = x_batch.double().to(device), y_batch.long().to(device)  # Ensure correct data types
 
             # Forward pass
             out = model(x_batch)
-
-            loss = criterion(out, y_batch.long())
+            loss = criterion(out, y_batch)
             epoch_loss += loss.item()
 
-            # zero the parameter gradients
+            # Backpropagation
             optimizer.zero_grad()
-
-            # Backward and optimize
             loss.backward()
             optimizer.step()
-            # Metrics
+
+            # Compute accuracy
             _, predicted = torch.max(out, 1)
             correct_predictions += (predicted == y_batch).sum().item()
             total_predictions += y_batch.size(0)
-            if i % 50 == 0:  # Debugging step every 10 batches
+
+            if i % 50 == 0:
                 logging.info(f"Epoch {epoch}, Batch {i}: Loss = {loss.item():.4f}")
 
         train_accuracy = correct_predictions / total_predictions
 
-        val_loss, val_correct, val_total, val_acc = get_train_metric(
-            model, val_dl, criterion, BATCH_SIZE
-        )
+        # Validate
+        val_loss, val_correct, val_total, val_acc = get_train_metric(model, val_dl, criterion, BATCH_SIZE)
 
         logging.info(
             f"Epoch: {epoch:3d} |"
-            f" Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}, "
-            f"Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}"
+            f" Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%} | "
+            f"Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}"
         )
 
         print(
             f"Epoch: {epoch:3d} |"
-            f" Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}, "
-            f"Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%}"
+            f" Train Loss: {epoch_loss / len(trn_dl):.4f}, Train Acc: {train_accuracy:.2%} | "
+            f"Validation Loss: {val_loss/len(val_dl):.4f}, Validation Acc.: {val_acc:2.2%}"
         )
+
+        # Save best model
         if val_acc > best_acc:
             trials = 0
             best_acc = val_acc
-            torch.save(
-                model.state_dict(), os.path.join(save_dir, "lstm_classifier_best.pth")
-            )
-            logging.info(
-                f"Epoch {epoch} best model saved with accuracy: {best_acc:2.2%}"
-            )
+            torch.save(model.state_dict(), os.path.join(save_dir, "lstm_classifier_best.pth"))
+            logging.info(f"Epoch {epoch} best model saved with accuracy: {best_acc:2.2%}")
         else:
             trials += 1
             if trials >= patience:
                 logging.info(f"Early stopping on epoch {epoch}")
                 break
 
-        # Save checkpoint after each epoch
+        # Save checkpoint
         save_checkpoint(
             {
                 "epoch": epoch,
@@ -251,7 +234,6 @@ def train():
         )
 
         scheduler.step(val_loss)
-
 
 if __name__ == "__main__":
     train()
