@@ -31,7 +31,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "/kaggle/input/my-csi"
+DATASET_FOLDER = "/kaggle/input/mini-csi"
 # DATASET_FOLDER=".\\preprocessing"
 
 # LSTM Model parameters
@@ -46,12 +46,7 @@ DATA_STEP = 8
 
 BATCH_SIZE = 16
 EPOCHS_NUM = 100
-LEARNING_RATE = 0.001
-
-# class_weights = torch.Tensor([0.4225, 1.3319, 1.4432, 1.6811, 1.6820]).double().to(device)
-# class_weights_inv = 1 / class_weights
-# logging.info("class_weights_inv: {}".format(class_weights_inv))
-
+LEARNING_RATE = 0.0005
 
 def save_checkpoint(state, filename="checkpoint.pth"):
     torch.save(state, filename)
@@ -88,15 +83,33 @@ def load_data():
     data_path = os.path.join(DATASET_FOLDER, "data.csv")
     label_path = os.path.join(DATASET_FOLDER, "label.csv")
     amplitudes, phases, labels = read_all_data_from_files(data_path, label_path)
-    print("label shape",labels.shape)
-    print("amplitudes shape",amplitudes.shape)
+
+    print("Label shape:", labels.shape)
+    print("Amplitudes shape:", amplitudes.shape)
+
     # Concatenate amplitude and phase data for input features
     csi_data = np.hstack((amplitudes, phases))
 
-    # Stratified split
+    # Shuffle the dataset before splitting (optional, useful if classes are sequential)
+    indices = np.arange(len(labels))
+    np.random.shuffle(indices)
+    csi_data, labels = csi_data[indices], labels[indices]
+
+    # Stratified split to maintain class balance
     train_csi, val_csi, train_labels, val_labels = train_test_split(
         csi_data, labels, test_size=0.2, stratify=labels, random_state=42
     )
+    
+    unique, counts = np.unique(train_labels, return_counts=True)
+    print("Train class distribution:", dict(zip(unique, counts)))
+
+    unique, counts = np.unique(val_labels, return_counts=True)
+    print("Validation class distribution:", dict(zip(unique, counts)))
+
+
+    # Compute normalization stats on training set
+    train_mean = np.mean(train_csi, axis=0)
+    train_std = np.std(train_csi, axis=0) + 1e-8  # Avoid division by zero
 
     # Create datasets
     train_dataset = CSIDataset(
@@ -106,22 +119,17 @@ def load_data():
         val_csi, val_labels, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
     )
 
-    # Normalize using training stats
-    train_mean = np.mean(train_csi)
-    train_std = np.std(train_csi)
+    # Assign normalization stats
     train_dataset.normalize_mean = train_mean
     train_dataset.normalize_std = train_std
     val_dataset.normalize_mean = train_mean
     val_dataset.normalize_std = train_std
 
     # DataLoaders
-    trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_dl = DataLoader(
-        val_dataset, batch_size=BATCH_SIZE, shuffle=False
-    )  # No shuffle for val!
+    trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
 
     return trn_dl, val_dl
-
 
 def train():
     save_dir = "saved_models"
