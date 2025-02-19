@@ -4,6 +4,8 @@ import torch
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
+
 from loader import CSIDataset
 from self_metrics import get_train_metric
 from LSTM_classifier import LSTMClassifier
@@ -44,7 +46,7 @@ bidirectional = False
 SEQ_DIM = 1024
 DATA_STEP = 8
 
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 EPOCHS_NUM = 100
 LEARNING_RATE = 0.0005
 
@@ -77,6 +79,12 @@ def read_all_data_from_files(data_path, label_path,  antenna_pairs=1):
 
     return amplitudes, phases, labels
 
+def get_class_weights(labels):
+    """Compute inverse class frequencies to balance sampling."""
+    class_counts = np.bincount(labels)  # Count occurrences of each class
+    class_weights = 1.0 / class_counts  # Inverse frequency
+    sample_weights = class_weights[labels]  # Assign weight to each sample
+    return sample_weights
 
 def load_data():
     # Load merged CSI data and labels
@@ -124,9 +132,14 @@ def load_data():
     train_dataset.normalize_std = train_std
     val_dataset.normalize_mean = train_mean
     val_dataset.normalize_std = train_std
+    
+    # Compute weights for stratified sampling
+    sample_weights = get_class_weights(train_labels)
+    sampler = WeightedRandomSampler(sample_weights, num_samples=len(train_labels), replacement=True)
+
 
     # DataLoaders
-    trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sample_weights, drop_last=True)
     val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
 
     return trn_dl, val_dl
