@@ -22,7 +22,7 @@ def read_csi_data_from_csv(path_to_csv,  antenna_pairs=1):
     """
 
     data = pd.read_csv(path_to_csv, header=None).values
-    print("shape",data.shape)
+    # print("shape",data.shape)
 
     
     subcarries_num = SUBCARRIES_NUM

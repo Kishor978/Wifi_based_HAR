@@ -33,8 +33,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "/kaggle/input/mini-csi"
-# DATASET_FOLDER=".\\preprocessing"
+# DATASET_FOLDER = "/kaggle/input/mini-csi"
+DATASET_FOLDER=".\\preprocessing"
 
 # LSTM Model parameters
 input_dim = 64  
@@ -44,7 +44,7 @@ output_dim = 4
 dropout_rate = 0.2
 bidirectional = False
 SEQ_DIM = 1024
-DATA_STEP = 8
+DATA_STEP = 4
 
 BATCH_SIZE = 32
 EPOCHS_NUM = 100
@@ -81,9 +81,19 @@ def read_all_data_from_files(data_path, label_path,  antenna_pairs=1):
 
 def get_class_weights(labels):
     """Compute inverse class frequencies to balance sampling."""
+    class_to_idx = {
+        "standing": 0,
+        "walking": 1,
+        "jumping": 2,
+        "no_person": 3,
+    }
+
+    # Convert string labels to integers
+    labels = np.array([class_to_idx[label] for label in labels])
     class_counts = np.bincount(labels)  # Count occurrences of each class
-    class_weights = 1.0 / class_counts  # Inverse frequency
-    sample_weights = class_weights[labels]  # Assign weight to each sample
+    total_samples = len(labels)
+    class_weights = total_samples / (len(class_counts) * class_counts)  # Inverse frequency
+    sample_weights = np.array([class_weights[label] for label in labels])
     return sample_weights
 
 def load_data():
@@ -92,8 +102,8 @@ def load_data():
     label_path = os.path.join(DATASET_FOLDER, "label.csv")
     amplitudes, phases, labels = read_all_data_from_files(data_path, label_path)
 
-    print("Label shape:", labels.shape)
-    print("Amplitudes shape:", amplitudes.shape)
+    # print("Label shape:", labels.shape)
+    # print("Amplitudes shape:", amplitudes.shape)
 
     # Concatenate amplitude and phase data for input features
     csi_data = np.hstack((amplitudes, phases))
@@ -118,6 +128,8 @@ def load_data():
     # Compute normalization stats on training set
     train_mean = np.mean(train_csi, axis=0)
     train_std = np.std(train_csi, axis=0) + 1e-8  # Avoid division by zero
+    train_csi = (train_csi - train_mean) / train_std
+    val_csi = (val_csi - train_mean) / train_std
 
     # Create datasets
     train_dataset = CSIDataset(
@@ -126,20 +138,25 @@ def load_data():
     val_dataset = CSIDataset(
         val_csi, val_labels, window_size=SEQ_DIM, step=DATA_STEP, is_training=False
     )
+    print(f"Dataset size: {len(train_dataset)}")
+    print(f"Max index in dataset: {max(range(len(train_dataset)))}")
+    print(f"Max index in dataset: {max(range(len(val_dataset)))}")
 
-    # Assign normalization stats
-    train_dataset.normalize_mean = train_mean
-    train_dataset.normalize_std = train_std
-    val_dataset.normalize_mean = train_mean
-    val_dataset.normalize_std = train_std
     
     # Compute weights for stratified sampling
-    sample_weights = get_class_weights(train_labels)
-    sampler = WeightedRandomSampler(sample_weights, num_samples=len(train_labels), replacement=True)
-
+    # Adjust sample weights to match the new dataset size
+    windowed_labels = [train_labels[idx + SEQ_DIM - 1] for idx in range(0, len(train_labels) - SEQ_DIM, DATA_STEP)]
+    sample_weights = get_class_weights(np.array(windowed_labels))
+    
+    # num_samples = len(train_dataset)
+    
+    sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
+    print(f"Sample Weights Shape: {sample_weights.shape}")
+    print(f"Unique Weights: {np.unique(sample_weights)}")
+    print(f"Sampler Length: {len(sampler)}")
 
     # DataLoaders
-    trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sample_weights, drop_last=True)
+    trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler, drop_last=True)
     val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
 
     return trn_dl, val_dl

@@ -48,8 +48,8 @@ class CSIDataset(Dataset):
     def __init__(self, train_csi, labels, window_size=32, step=1,is_training=False):
         self.is_training = is_training
         self.amplitudes, self.phases= read_csi_data_from_csv(train_csi)
-        print("len",len(self.amplitudes))
-        print(self.phases.shape)
+        # print("len",len(self.amplitudes))
+        # print(self.phases.shape)
         self.labels = labels
  
         self.amplitudes = calibrate_amplitude(self.amplitudes)
@@ -64,9 +64,9 @@ class CSIDataset(Dataset):
             self.amplitudes[:data_len, i] = dwn_noise(hampel(self.amplitudes[:, i]))[
                 :data_len
             ]
-        print("Amplitudes shape:", self.amplitudes.shape)
+        # print("Amplitudes shape:", self.amplitudes.shape)
         self.amplitudes_pca = pca.fit_transform(self.amplitudes)
-        print("PCA output shape:", self.amplitudes_pca.shape)
+        # print("PCA output shape:", self.amplitudes_pca.shape)
 
         self.amplitudes_pca = np.array(self.amplitudes_pca)
         # self.amplitudes_pca = self.amplitudes_pca.reshape(
@@ -120,7 +120,9 @@ class CSIDataset(Dataset):
         return np.array(all_xs), self.class_to_idx[self.labels[idx + self.window - 1]]
 
     def __len__(self):
-        return int((self.labels.shape[0] - self.window) // self.step) + 1
+        length = max(1, int((self.labels.shape[0] - self.window) // self.step) + 1)
+        print(f"CSIDataset length: {length}")  # Debugging
+        return length
 
 
 if __name__ == "__main__":
