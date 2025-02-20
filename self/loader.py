@@ -54,7 +54,7 @@ class CSIDataset(Dataset):
  
         self.amplitudes = calibrate_amplitude(self.amplitudes)
 
-        pca = decomposition.PCA(n_components=12)
+        pca = decomposition.PCA(n_components=52)
 
         self.amplitudes_pca = []
 

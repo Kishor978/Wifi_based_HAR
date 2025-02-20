@@ -33,8 +33,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-DATASET_FOLDER = "/kaggle/input/mini-csi"
-# DATASET_FOLDER=".\\preprocessing"
+# DATASET_FOLDER = "/content/drive/MyDrive/data"
+DATASET_FOLDER=".\\preprocessing"
 
 # LSTM Model parameters
 input_dim = 64  
@@ -159,7 +159,7 @@ def load_data():
     trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler, drop_last=True)
     val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
 
-    return trn_dl, val_dl,sample_weights
+    return trn_dl, val_dl
 
 
 def train():
@@ -168,7 +168,7 @@ def train():
 
     # Initialize metrics
     patience, trials, best_acc = 10, 0, 0
-    trn_dl, val_dl,class_weights = load_data()
+    trn_dl, val_dl = load_data()
 
     # Ensure input dimensions are valid
     assert SEQ_DIM % 4 == 0, "SEQ_DIM must be divisible by 4 for CNN operations"
@@ -189,9 +189,9 @@ def train():
     summary(model, input_size=(1, 1, input_dim, SEQ_DIM), device=device)
 
     # Loss, optimizer, and scheduler
-    class_weights = torch.tensor(class_weights).to(device)
+    # class_weights = torch.tensor(class_weights).to(device)
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
     scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=3, verbose=True)
 
@@ -262,10 +262,10 @@ def train():
         scheduler.step(val_loss)
 
         logging.info(
-            f"Epoch {epoch:3d} | Validation Loss: {val_loss/len(val_dl):.4f}, "
+            f"Epoch {epoch:3d} | Validation Loss: {val_loss:.4f}, "
             f"Validation Acc.: {val_acc:.2%}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2%}"
         )
-        print(f"Epoch {epoch:3d} | Validation Loss: {val_loss/len(val_dl):.4f}, "
+        print(f"Epoch {epoch:3d} | Validation Loss: {val_loss:.4f}, "
             f"Validation Acc.: {val_acc:.2%}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2%}")
         if val_acc > best_acc:
             trials = 0
