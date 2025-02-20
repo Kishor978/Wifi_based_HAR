@@ -38,7 +38,7 @@ DATASET_FOLDER = "/kaggle/input/mini-csi"
 
 # LSTM Model parameters
 input_dim = 64  
-hidden_dim = 256
+hidden_dim = 512
 layer_dim = 2
 output_dim = 4
 dropout_rate = 0.2
@@ -46,9 +46,9 @@ bidirectional = False
 SEQ_DIM = 1024
 DATA_STEP = 4
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 EPOCHS_NUM = 100
-LEARNING_RATE = 0.0005
+LEARNING_RATE = 0.0001
 
 def save_checkpoint(state, filename="checkpoint.pth"):
     torch.save(state, filename)
@@ -159,7 +159,7 @@ def load_data():
     trn_dl = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler, drop_last=True)
     val_dl = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
 
-    return trn_dl, val_dl
+    return trn_dl, val_dl,sample_weights
 
 
 def train():
@@ -168,7 +168,7 @@ def train():
 
     # Initialize metrics
     patience, trials, best_acc = 10, 0, 0
-    trn_dl, val_dl = load_data()
+    trn_dl, val_dl,class_weights = load_data()
 
     # Ensure input dimensions are valid
     assert SEQ_DIM % 4 == 0, "SEQ_DIM must be divisible by 4 for CNN operations"
@@ -184,14 +184,16 @@ def train():
         output_dim=output_dim,
         seq_dim=SEQ_DIM
     ).to(device)
-
+    
     # Print model summary
     summary(model, input_size=(1, 1, input_dim, SEQ_DIM), device=device)
 
     # Loss, optimizer, and scheduler
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
-    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5, verbose=True)
+    class_weights = torch.tensor(class_weights).to(device)
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5)
+    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=3, verbose=True)
 
     checkpoint_filename = os.path.join(save_dir, "checkpoint.pth")
     start_epoch = 1

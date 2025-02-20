@@ -109,7 +109,7 @@ class CSIDataset(Dataset):
             # Combine features
             combined = np.append(amplitude, pca)
 
-            # Add noise to this individual sample (not the entire window)
+            # Add noise to this individual sample 
             if self.is_training:
                 noise = np.random.normal(0, 0.01, size=combined.shape)
                 combined += noise
