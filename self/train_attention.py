@@ -33,8 +33,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 logging.info("Device: {}".format(device))
 
 # Define dataset structure
-# DATASET_FOLDER = "/kaggle/input/mini-csi"
-DATASET_FOLDER=".\\preprocessing"
+DATASET_FOLDER = "/kaggle/input/mini-csi"
+# DATASET_FOLDER=".\\preprocessing"
 
 # LSTM Model parameters
 input_dim = 64  
@@ -259,6 +259,34 @@ def train():
         # Learning rate scheduler
         scheduler.step(val_loss)
 
+        logging.info(
+            f"Epoch {epoch:3d} | Validation Loss: {val_loss/len(val_dl):.4f}, "
+            f"Validation Acc.: {val_acc:.2%}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2%}"
+        )
+        print(f"Epoch {epoch:3d} | Validation Loss: {val_loss/len(val_dl):.4f}, "
+            f"Validation Acc.: {val_acc:.2%}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2%}")
+        if val_acc > best_acc:
+            trials = 0
+            best_acc = val_acc
+            torch.save(model.state_dict(), os.path.join(save_dir, "lstm_classifier_best.pth"))
+            logging.info(f"Epoch {epoch}: Best model saved with accuracy {best_acc:.2%}")
+        else:
+            trials += 1
+            if trials >= patience:
+                logging.info(f"Early stopping at epoch {epoch}")
+                break
+
+        # Save checkpoint
+        torch.save({
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "best_acc": best_acc,
+        }, checkpoint_filename)
+
+        scheduler.step(val_loss)
+        
         # Logging
         logging.info
         
