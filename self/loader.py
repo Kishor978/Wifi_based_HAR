@@ -54,7 +54,7 @@ class CSIDataset(Dataset):
  
         self.amplitudes = calibrate_amplitude(self.amplitudes)
 
-        pca = decomposition.PCA(n_components=52)
+        pca = decomposition.PCA(n_components=12)
 
         self.amplitudes_pca = []
 
@@ -67,7 +67,12 @@ class CSIDataset(Dataset):
         # print("Amplitudes shape:", self.amplitudes.shape)
         self.amplitudes_pca = pca.fit_transform(self.amplitudes)
         # print("PCA output shape:", self.amplitudes_pca.shape)
-
+        self.explained_variance_ratio = pca.explained_variance_ratio_
+        print("Explained variance ratio:", self.explained_variance_ratio)
+        self.cumulative_explained_variance_ratio = np.cumsum(
+            self.explained_variance_ratio
+        )
+        print("Cumulative explained variance ratio:", self.cumulative_explained_variance_ratio)
         self.amplitudes_pca = np.array(self.amplitudes_pca)
         # self.amplitudes_pca = self.amplitudes_pca.reshape(
         #     (
@@ -104,10 +109,11 @@ class CSIDataset(Dataset):
         for index in range(idx, idx + self.window):
         # Load the amplitude and PCA data for this timestep
             amplitude = self.amplitudes[index]
+            phase= self.phases[index]
             pca = self.amplitudes_pca[index]
 
             # Combine features
-            combined = np.append(amplitude, pca)
+            combined = np.append(phase, amplitude)
 
             # Add noise to this individual sample 
             if self.is_training:

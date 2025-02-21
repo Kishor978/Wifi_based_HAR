@@ -34,7 +34,7 @@ logging.info("Device: {}".format(device))
 
 # Define dataset structure
 # DATASET_FOLDER = "/content/drive/MyDrive/data"
-DATASET_FOLDER=".\\preprocessing"
+DATASET_FOLDER=".\\preprocessing\\merged"
 
 # LSTM Model parameters
 input_dim = 64  
@@ -65,19 +65,46 @@ def load_checkpoint(filename="checkpoint.pth"):
     return checkpoint
 
 
-def read_all_data_from_files(data_path, label_path,  antenna_pairs=1):
-    """
-    Read CSI and labels from merged CSV files.
-    """
-    amplitudes, phases = read_csi_data_from_csv(data_path,  antenna_pairs)
-    labels = read_labels_from_csv(label_path, len(amplitudes))
-    # # print(len(valid_indices))
-    # # print(len(amplitudes))
-    # print(phases.shape)
-    # Apply the filter
-    amplitudes, phases = amplitudes[:], phases[:]
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
 
-    return amplitudes, phases, labels
+def read_all_data_from_files(data_path, label_path, antenna_pairs=1):
+    """
+    Read CSI and labels from merged CSV files and apply scaling to amplitudes and phases.
+    """
+    amplitudes, phases = read_csi_data_from_csv(data_path, antenna_pairs)
+    labels = read_labels_from_csv(label_path, len(amplitudes))
+
+    # Convert to numpy arrays if not already
+    amplitudes = np.array(amplitudes)
+    print("Amplitudes Shape:", amplitudes.shape)
+    print("max:", np.max(amplitudes))
+    print("min:", np.min(amplitudes))
+    phases = np.array(phases)
+    print("Phases Shape:", phases.shape)
+    print("max:", np.max(phases))
+    print("min:", np.min(phases))
+
+    # Initialize scalers
+    amp_scaler = MinMaxScaler()
+    phase_scaler = MinMaxScaler(feature_range=(-1, 1))  # For phases (-π to π)
+
+    # Reshape if necessary (for 1D arrays)
+    if len(amplitudes.shape) == 1:
+        amplitudes = amplitudes.reshape(-1, 1)
+    if len(phases.shape) == 1:
+        phases = phases.reshape(-1, 1)
+
+    # Apply scaling
+    scaled_amplitudes = amp_scaler.fit_transform(amplitudes)
+    print("Scaled Amplitudes Shape:", scaled_amplitudes.shape)
+    print("scaled max:", np.max(scaled_amplitudes))
+    print("scaled min:", np.min(scaled_amplitudes))
+    scaled_phases = phase_scaler.fit_transform(phases)
+    print("Scaled Phases Shape:", scaled_phases.shape)
+    print("scaled max:", np.max(scaled_phases))
+    print("scaled min:", np.min(scaled_phases))
+    return scaled_amplitudes, scaled_phases, labels
 
 def get_class_weights(labels):
     """Compute inverse class frequencies to balance sampling."""
