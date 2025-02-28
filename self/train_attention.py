@@ -14,6 +14,8 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 from self_utils import read_csi_data_from_csv, read_labels_from_csv
 from Attention import CNN_BiLSTM_Attention
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
 
 # Configure logging
 log_filename = "training.log"
@@ -37,7 +39,7 @@ logging.info("Device: {}".format(device))
 DATASET_FOLDER=".\\preprocessing\\merged"
 
 # LSTM Model parameters
-input_dim = 64  
+input_dim = 104  
 hidden_dim = 512
 layer_dim = 2
 output_dim = 4
@@ -65,8 +67,7 @@ def load_checkpoint(filename="checkpoint.pth"):
     return checkpoint
 
 
-from sklearn.preprocessing import MinMaxScaler
-import numpy as np
+
 
 def read_all_data_from_files(data_path, label_path, antenna_pairs=1):
     """
