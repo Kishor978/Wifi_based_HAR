@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSI Sense Zero - Presence Detection Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="../static/js/dashboard.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f1218;
+            --card-bg: #171c26;
+            --accent-blue: #4a7dff;
+            --text-primary: #ffffff;
+            --text-secondary: #8b95a5;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-dot.connected {
+            background-color: #22c55e;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+        }
+
+        .status-dot.disconnected {
+            background-color: #ef4444;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+
+        .current-status {
+            text-align: center;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-icon {
+            font-size: 2rem;
+            color: var(--accent-blue);
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-left: 2px solid var(--accent-blue);
+            background-color: rgba(74, 125, 255, 0.1);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+
+        /* Fixed section styles */
+        .status-section {
+            height: 300px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .status-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+
+        .section-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+        }
+
+        .chart-section {
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .metrics-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            overflow: hidden;
+        }
+
+        .chart-container {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .metric-card {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .timeline-section {
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .timeline-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .text-ellipsis {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Activity state indicators */
+        .activity-state {
+            transition: all 0.5s ease;
+            position: relative;
+        }
+
+        .activity-state::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            border-radius: 12px;
+            opacity: 0.1;
+            z-index: 0;
+            transition: all 0.5s ease;
+        }
+
+        .activity-state.standing::after {
+            background: linear-gradient(45deg, var(--accent-blue), #2563eb);
+            animation: pulseGlow 2s infinite;
+        }
+
+        .activity-state.no-activity::after {
+            background: linear-gradient(45deg, #6B7280, #4B5563);
+        }
+
+        @keyframes pulseGlow {
+            0% { opacity: 0.1; }
+            50% { opacity: 0.2; }
+            100% { opacity: 0.1; }
+        }
+
+        /* Metric display */
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-align: center;
+            transition: all 0.5s ease;
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        /* Value indicator dot */
+        .value-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            transition: all 0.5s ease;
+        }
+
+        .value-indicator.value-1 {
+            background-color: var(--accent-blue);
+            box-shadow: 0 0 10px rgba(74, 125, 255, 0.5);
+        }
+
+        .value-indicator.value-0 {
+            background-color: #6B7280;
+            box-shadow: 0 0 10px rgba(107, 114, 128, 0.5);
+        }
+
+        .visualization-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            height: 100%;
+            min-height: 250px;
+            padding: 1rem;
+        }
+
+        .lottie-container {
+            width: 100%;
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #animationContainer {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto;
+        }
+
+        .activity-label {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            font-weight: 500;
+            white-space: nowrap;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-[#4a7dff] mb-2">Wi-Fi Based Human Activity Recognition</h1>
+            <p class="text-[#8b95a5]">Real-time monitoring using ESP32 CSI</p>
+        </header>
+
+        <!-- Connection Status -->
+        <div class="card p-4 mb-6 flex justify-between items-center">
+            <div class="flex items-center">
+                <span id="statusDot" class="status-dot disconnected"></span>
+                <span id="statusText" class="text-[#8b95a5]">Disconnected</span>
+            </div>
+            <div class="text-[#8b95a5]" id="currentTime"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">  
+            <!-- Current Status Card -->
+            <div class="card status-section mb-6 activity-state" id="activityStateCard">
+                <div class="status-content">
+                    <h3 class="text-xl font-semibold text-center mb-4">Current Status</h3>
+                    <div class="status-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <h2 id="currentActivity" class="text-2xl font-bold mb-2 text-center text-ellipsis">Waiting for data...</h2>
+                    <p id="lastUpdated" class="text-[#8b95a5] text-center">Last updated: <span>--:--:-- --</span></p>
+                </div>
+            </div>
+
+            <!-- Activity Visualization Card -->
+            <div class="card status-section mb-6">
+                <div class="section-header">
+                    <h3 class="text-xl font-semibold text-center">Activity Visualization</h3>
+                </div>
+                <div class="visualization-container">
+                    <div class="lottie-container">
+                        <div id="animationContainer"></div>
+                    </div>
+                    <div class="activity-label" id="activityLabel">Waiting for activity...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Metrics -->
+            <div class="card chart-section">
+                <div class="section-header">
+                    <h3 class="text-xl font-semibold">Current Metrics</h3>
+                </div>
+                <div class="metrics-container">
+                    <div class="metrics-grid">
+                        <div class="metric-card bg-opacity-10 bg-blue-500">
+                            <div id="standingMetric" class="metric-value text-[#4a7dff]">0%</div>
+                            <div class="metric-label">Standing (1)</div>
+                        </div>
+                        <div class="metric-card bg-opacity-10 bg-gray-500">
+                            <div id="walkingMetric" class="metric-value text-[#6B7280]">0%</div>
+                            <div class="metric-label">Walking (0)</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="confidenceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Timeline -->
+            <div class="card timeline-section">
+                <div class="section-header">
+                    <h3 class="text-xl font-semibold">Activity Timeline</h3>
+                </div>
+                <div class="timeline-container">
+                    <div id="timeline" class="space-y-4">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        let confidenceChart;
+        const chartConfig = {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Person is Walking',
+                        data: [],
+                        borderColor: '#8b95a5',
+                        backgroundColor: 'rgba(139, 149, 165, 0.2)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Person is Standing',
+                        data: [],
+                        borderColor: '#4a7dff',
+                        backgroundColor: 'rgba(74, 125, 255, 0.2)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#8b95a5'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#8b95a5'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#8b95a5'
+                        }
+                    }
+                }
+            }
+        };
+
+        function initChart() {
+            const ctx = document.getElementById('confidenceChart').getContext('2d');
+            confidenceChart = new Chart(ctx, chartConfig);
+        }
+
+        function updateActivity(activity, confidence, isOffline = false) {
+            const currentActivity = document.getElementById('currentActivity');
+            const statusIcon = document.querySelector('.status-icon i');
+            const lastUpdated = document.getElementById('lastUpdated');
+            const activityStateCard = document.getElementById('activityStateCard');
+            const standingMetric = document.getElementById('standingMetric');
+            const walkingMetric = document.getElementById('walkingMetric');
+            
+            if (!isOffline) {
+                const value = activity === 'Person is Standing' ? 1 : 0;
+                standingMetric.textContent = `${confidence[1]}%`;
+                walkingMetric.textContent = `${confidence[0]}%`;
+                activityStateCard.className = 'card status-section mb-6 activity-state';
+                activityStateCard.classList.add(value === 1 ? 'standing' : 'walking');
+            } else {
+                standingMetric.textContent = '--';
+                walkingMetric.textContent = '--';
+                activityStateCard.className = 'card status-section mb-6 activity-state';
+            }
+            
+            currentActivity.textContent = isOffline ? 'System Offline' : activity;
+            lastUpdated.querySelector('span').textContent = new Date().toLocaleTimeString();
+            
+            if (isOffline) {
+                statusIcon.style.color = '#ef4444';
+            } else {
+                statusIcon.style.color = activity === 'Person is Standing' ? '#4a7dff' : '#8b95a5';
+            }
+            
+            // Update confidence chart
+            updateChart(confidence);
+            addTimelineItem(activity, new Date().toLocaleTimeString());
+        }
+
+        // Update chart data
+        function updateChart(confidence) {
+            if (confidenceChart) {
+                const timestamp = new Date().toLocaleTimeString();
+                
+                // Add new data point
+                confidenceChart.data.labels.push(timestamp);
+                confidenceChart.data.datasets[0].data.push(confidence[0]);
+                confidenceChart.data.datasets[1].data.push(confidence[1]);
+                
+                // Keep only last 10 data points
+                if (confidenceChart.data.labels.length > 10) {
+                    confidenceChart.data.labels.shift();
+                    confidenceChart.data.datasets.forEach(dataset => dataset.data.shift());
+                }
+                
+                confidenceChart.update();
+            }
+        }
+
+        // Add timeline item
+        function addTimelineItem(activity, time) {
+            const timeline = document.getElementById('timeline');
+            const item = document.createElement('div');
+            item.className = 'timeline-item';
+            item.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-user mr-2 text-[#4a7dff]"></i>
+                    <div>
+                        <div class="font-semibold">${activity}</div>
+                        <div class="text-sm text-[#8b95a5]">${time}</div>
+                    </div>
+                </div>
+            `;
+            timeline.insertBefore(item, timeline.firstChild);
+        }
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            document.getElementById('statusDot').className = 'status-dot connected';
+            document.getElementById('statusText').textContent = 'Connected';
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('statusDot').className = 'status-dot disconnected';
+            document.getElementById('statusText').textContent = 'Disconnected';
+        });
+
+        socket.on('activity_update', (data) => {
+            updateActivity(data.hypothesis, data.confidence_scores, data.is_offline);
+        });
+
+        // Initialize
+        window.addEventListener('load', () => {
+            initChart();
+            setInterval(() => {
+                document.getElementById('currentTime').textContent = new Date().toLocaleTimeString();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
